@@ -1,0 +1,18 @@
+# Maven
+/target/
+*.jar
+*.war
+*.ear
+*.class
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+/.idea/
+/.vscode/
+*.iml
+*.swp
+.DS_Store
+
+# Environment
+.env
+.env.local
