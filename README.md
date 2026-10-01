@@ -33,14 +33,14 @@ Use **[Wajub.js](https://docs.wajub.com/libraries/components/js)** for embedded 
 <dependency>
     <groupId>com.wajub</groupId>
     <artifactId>wajub-java</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
 </dependency>
 ```
 
 **Gradle:**
 
 ```kotlin
-implementation("com.wajub:wajub-java:1.1.0")
+implementation("com.wajub:wajub-java:1.2.0")
 ```
 
 ## Quick start
@@ -141,7 +141,7 @@ Wajub client = Wajub.create(Wajub.Config.builder()
 | Service | Methods |
 |---------|---------|
 | `client.global()` | `ping`, `channels`, `countries`, `currencies` |
-| `client.payments()` | `create`, `initialize`, `retrieve`, `list`, `cancel`, `process`, `processSplit`, `listRefunds` |
+| `client.payments()` | `create`, `retrieve`, `list`, `cancel`, `process`, `processSplit`, `listRefunds` |
 | `client.customers()` | `create`, `retrieve`, `update`, `delete`, `list`, `block`, `unblock`, `activate`, `deactivate`, `listTaxIds`, `createTaxId`, `deleteTaxId` |
 | `client.refunds()` | `create`, `retrieve`, `list` |
 | `client.transfers()` | `create`, `retrieve`, `list` |

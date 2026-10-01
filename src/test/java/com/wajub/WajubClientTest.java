@@ -181,17 +181,6 @@ class WajubClientTest {
     }
 
     @Test
-    void paymentsInitializeAlias() throws Exception {
-        enqueueResponses(req -> jsonResponse(200, Map.of(
-                "transaction", Map.of("id", "pay_456"),
-                "authorization_url", "https://checkout.test/pay/pay_456")));
-
-        Wajub client = newClient();
-        Payment payment = client.payments().initialize(Map.of("amount", 1000, "currency", "XAF"), null);
-        assertEquals("pay_456", payment.getId());
-    }
-
-    @Test
     void paymentsListPagination() throws Exception {
         enqueueResponses(
                 req -> jsonResponse(200, Map.of(

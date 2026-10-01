@@ -17,10 +17,6 @@ public class PaymentsResource {
         return Payment.parsePayment(res);
     }
 
-    public Payment initialize(Map<String, Object> params, RequestOptions opts) throws WajubException {
-        return create(params, opts);
-    }
-
     public Payment retrieve(String id) throws WajubException {
         Map<String, Object> res = base.get("/payments/" + id, null);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
