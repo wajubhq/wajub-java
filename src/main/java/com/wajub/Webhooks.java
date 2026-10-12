@@ -37,6 +37,10 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException(
                     "Webhook secret is required for constructEvent");
         }
+        if (timestamp == null || timestamp.isBlank()) {
+            throw new WebhookSignatureVerificationException(
+                    "Missing X-Wajub-Signature or X-Wajub-Timestamp header.");
+        }
         if (signature == null || !signature.startsWith("v1=")) {
             throw new WebhookSignatureVerificationException(
                     "Invalid webhook signature format. Expected v1={hash}.");

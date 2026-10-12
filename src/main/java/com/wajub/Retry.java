@@ -31,6 +31,26 @@ final class Retry {
         return Duration.ofMillis(millis);
     }
 
+    /**
+     * Whether the API answered the 409 it sends while a request with the same
+     * Idempotency-Key is still running ({@code errors.idempotency_key}). A call
+     * sent again after a timeout can arrive before the first one has finished:
+     * its answer is on the way, so the call is worth repeating with the same
+     * key. Every other 409 is a real refusal.
+     */
+    static boolean isIdempotencyKeyInProgress(int status, java.util.Map<String, Object> body) {
+        if (status != 409 || body == null) {
+            return false;
+        }
+        Object errors = body.get("errors");
+        return errors instanceof java.util.Map<?, ?> map && map.containsKey("idempotency_key");
+    }
+
+    /** The pause before asking again about a key still being processed: 2, 4, then 8 seconds. */
+    static Duration idempotencyConflictDelay(int attempt) {
+        return Duration.ofSeconds(1L << Math.max(1, attempt));
+    }
+
     static int parseRetryAfterSeconds(Headers headers) {
         Duration delay = parseRetryAfter(headers != null ? headers.get("Retry-After") : null);
         if (delay == null) {

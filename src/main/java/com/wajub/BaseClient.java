@@ -115,6 +115,15 @@ class BaseClient {
                     continue;
                 }
 
+                // The same key still being processed: the first request's answer
+                // is coming. Asked again with the same key, the API returns it.
+                if (idempotencyKey != null && !idempotencyKey.isBlank()
+                        && Retry.isIdempotencyKeyInProgress(status, parsed) && attempt < Retry.MAX_RETRIES) {
+                    sleep(Retry.idempotencyConflictDelay(attempt + 1));
+                    attempt++;
+                    continue;
+                }
+
                 int retryAfter = Retry.parseRetryAfterSeconds(response.headers());
                 throw HttpUtils.errorFromResponse(status, parsed, retryAfter);
 

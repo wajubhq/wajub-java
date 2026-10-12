@@ -34,6 +34,16 @@ class WebhooksTest {
     }
 
     @Test
+    void constructEventAnswersAMissingHeaderWithASignatureError() {
+        Webhooks w = new Webhooks("whsec_test");
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent("{}".getBytes(), null, timestamp, null));
+        assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent("{}".getBytes(), "v1=deadbeef", null, null));
+    }
+
+    @Test
     void pickResource() {
         Map<String, Object> body = Map.of(
                 "transaction", Map.of("id", "pay_123"));

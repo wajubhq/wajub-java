@@ -239,6 +239,41 @@ class WajubClientTest {
     }
 
     @Test
+    void retriesA409ForAnIdempotencyKeyStillBeingProcessed() throws Exception {
+        // A call sent again after a timeout can reach the API while the first
+        // one is still running: the answer is on its way, so ask again.
+        String message = "A request with this Idempotency-Key is still being processed.";
+        enqueueResponses(
+                req -> jsonResponse(409, Map.of(
+                        "message", message,
+                        "errors", Map.of("idempotency_key", List.of(message)))),
+                req -> jsonResponse(201, Map.of("transaction", Map.of("id", "trx_1"))));
+
+        Wajub client = newClient();
+        client.payments().create(Map.of("amount", 1000), new RequestOptions().setIdempotencyKey("ORDER-42"));
+
+        assertEquals(2, callCount.get());
+        assertEquals("ORDER-42", server.takeRequest().getHeader("Idempotency-Key"));
+        assertEquals("ORDER-42", server.takeRequest().getHeader("Idempotency-Key"));
+        assertEquals(java.time.Duration.ofSeconds(2), Retry.idempotencyConflictDelay(1));
+        assertEquals(java.time.Duration.ofSeconds(4), Retry.idempotencyConflictDelay(2));
+    }
+
+    @Test
+    void raisesAnyOther409AtOnce() {
+        enqueueResponses(
+                req -> jsonResponse(409, Map.of(
+                        "error_code", "payment_in_progress",
+                        "message", "A charge is already in progress.")),
+                req -> jsonResponse(200, Map.of("ok", true)));
+
+        Wajub client = newClient();
+        assertThrows(com.wajub.exception.WajubException.class,
+                () -> client.payments().process("trx_1", Map.of("channel", "cm.mtn"), null));
+        assertEquals(1, callCount.get());
+    }
+
+    @Test
     void retryReusesSameIdempotencyKeyAcrossAttempts() throws Exception {
         enqueueResponses(
                 req -> jsonResponse(503, Map.of("message", "Unavailable")),

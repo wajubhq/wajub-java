@@ -13,7 +13,8 @@ Use **[Wajub.js](https://docs.wajub.com/libraries/components/js)** for embedded 
 - Resource-oriented API (`client.payments()`, `client.customers()`, …)
 - Automatic `Idempotency-Key` on mutating requests (override per call)
 - Typed exceptions per HTTP status (`AuthenticationException`, `RateLimitException`, …)
-- Automatic retries on 429 and 5xx (max 2, exponential backoff)
+- Automatic retries on 429, 5xx and network errors (max 2, exponential backoff), with the same `Idempotency-Key`
+- A `409` for an `Idempotency-Key` still being processed is retried with the same key (after 2 then 4 s)
 - Page-based pagination with `autoPaging()` and `getNextPage()`
 - Webhook signature verification (HMAC-SHA256, timestamp tolerance)
 
@@ -33,14 +34,14 @@ Use **[Wajub.js](https://docs.wajub.com/libraries/components/js)** for embedded 
 <dependency>
     <groupId>com.wajub</groupId>
     <artifactId>wajub-java</artifactId>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
 </dependency>
 ```
 
 **Gradle:**
 
 ```kotlin
-implementation("com.wajub:wajub-java:1.2.0")
+implementation("com.wajub:wajub-java:1.2.1")
 ```
 
 ## Quick start
