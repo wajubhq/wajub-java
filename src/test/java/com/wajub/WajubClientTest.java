@@ -301,6 +301,39 @@ class WajubClientTest {
         assertEquals(java.time.Duration.ofSeconds(4), Retry.idempotencyConflictDelay(2));
     }
 
+    // The API answers 410 Gone on /listen/config and /listen/auth: integrators
+    // forward webhooks with the Wajub CLI's `wajub listen`.
+    @Test
+    void listenIsDeprecated() throws Exception {
+        for (java.lang.reflect.Method method : new java.lang.reflect.Method[] {
+                Wajub.class.getMethod("listen"),
+                ListenResource.class.getMethod("config"),
+                ListenResource.class.getMethod("auth", Map.class, RequestOptions.class)}) {
+            assertTrue(method.isAnnotationPresent(Deprecated.class), method.toString());
+            assertEquals("1.3.0", method.getAnnotation(Deprecated.class).since(), method.toString());
+        }
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void listenSendsTheSameRequestsAsBefore() throws Exception {
+        enqueueResponses(
+                req -> jsonResponse(200, Map.of("config", Map.of("url", "wss://example.test"))),
+                req -> jsonResponse(200, Map.of("auth", Map.of("token", "tok_1"))));
+
+        Wajub client = newClient();
+        assertEquals("wss://example.test", client.listen().config().get("url"));
+        assertEquals("tok_1", client.listen().auth(Map.of("channel", "c"), null).get("token"));
+
+        RecordedRequest config = server.takeRequest();
+        assertEquals("GET", config.getMethod());
+        assertEquals("/listen/config", config.getRequestUrl().encodedPath().replaceFirst("^/v1", ""));
+        RecordedRequest auth = server.takeRequest();
+        assertEquals("POST", auth.getMethod());
+        assertEquals("/listen/auth", auth.getRequestUrl().encodedPath().replaceFirst("^/v1", ""));
+        assertEquals(Map.of("channel", "c"), MAPPER.readValue(auth.getBody().readUtf8(), Map.class));
+    }
+
     @Test
     void raisesAnyOther409AtOnce() {
         enqueueResponses(

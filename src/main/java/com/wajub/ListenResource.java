@@ -12,11 +12,21 @@ public class ListenResource {
         this.base = base;
     }
 
+    /**
+     * @deprecated the API no longer offers it and answers {@code 410 Gone}. To receive webhooks
+     *     on your machine, forward them with the Wajub CLI: {@code wajub listen}.
+     */
+    @Deprecated(since = "1.3.0")
     public Map<String, Object> config() throws WajubException {
         Map<String, Object> res = base.get("/listen/config", null);
         return HttpUtils.pickResource(res, "config", "listen");
     }
 
+    /**
+     * @deprecated the API no longer offers it and answers {@code 410 Gone}. To receive webhooks
+     *     on your machine, forward them with the Wajub CLI: {@code wajub listen}.
+     */
+    @Deprecated(since = "1.3.0")
     public Map<String, Object> auth(Map<String, Object> params, RequestOptions opts) throws WajubException {
         Map<String, Object> res = base.post("/listen/auth", params, opts);
         return HttpUtils.pickResource(res, "auth", "listen");

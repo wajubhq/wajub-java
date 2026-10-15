@@ -32,6 +32,9 @@ this release, and are listed here for an upgrade from 1.1.1.
 - **`Payment.getAmount()`.** It returns a `long` and drops the decimals:
   GHS 12.50 reads `12`. It still returns that value, so code that calls it
   compiles and behaves as before. Call `getAmountDecimal()` instead.
+- **`listen()`, `listen().config()` and `listen().auth()`.** The API no
+  longer offers them and answers `410 Gone`. To receive webhooks on your
+  machine, forward them with the Wajub CLI: `wajub listen`.
 
 ### Removed
 - `payments().initialize()`, an alias of `payments().create()`. Call `create()`.
