@@ -34,6 +34,15 @@ The library uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `WebhookSignatureVerificationException` for every delivery, even a fresh
   one. A negative tolerance now keeps the default 300 seconds, as `null` and
   zero do.
+- **`webhooks().constructEvent()` with a tolerance under one second**, such as
+  `Duration.ofMillis(500)`, accepted a delivery up to a second old. The
+  tolerance now counts to the millisecond.
+- **`webhooks().constructEvent()` on a server whose default charset is not
+  UTF-8**, as on Windows: a delivery with an accented character failed its
+  signature check. The body is now read as UTF-8, as Wajub signs it.
+- `webhooks().constructEvent()` with a missing `X-Wajub-Signature` header
+  (`null` or empty) now says `Missing X-Wajub-Signature or X-Wajub-Timestamp
+  header.`, as a missing timestamp does, instead of reporting a bad format.
 
 ## [1.2.1] — 2026-10-12
 

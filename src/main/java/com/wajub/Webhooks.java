@@ -3,6 +3,8 @@ package com.wajub;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wajub.exception.WebhookSignatureVerificationException;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 
@@ -21,11 +23,12 @@ public class Webhooks {
     /**
      * Verifies X-Wajub-Signature and parses the event payload.
      *
-     * @param payload   raw request body
+     * @param payload   raw request body, as UTF-8 bytes
      * @param signature value of X-Wajub-Signature header
      * @param timestamp value of X-Wajub-Timestamp header
-     * @param tolerance maximum allowed timestamp drift; null, zero or negative keeps the
-     *                  default 300 seconds, so replay protection cannot be switched off
+     * @param tolerance maximum allowed timestamp drift, to the millisecond; null, zero or
+     *                  negative keeps the default 300 seconds, so replay protection cannot be
+     *                  switched off
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> constructEvent(
@@ -38,16 +41,17 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException(
                     "Webhook secret is required for constructEvent");
         }
-        if (timestamp == null || timestamp.isBlank()) {
+        if (signature == null || signature.isBlank() || timestamp == null || timestamp.isBlank()) {
             throw new WebhookSignatureVerificationException(
                     "Missing X-Wajub-Signature or X-Wajub-Timestamp header.");
         }
-        if (signature == null || !signature.startsWith("v1=")) {
+        if (!signature.startsWith("v1=")) {
             throw new WebhookSignatureVerificationException(
                     "Invalid webhook signature format. Expected v1={hash}.");
         }
 
-        String body = new String(payload);
+        // Wajub signs the UTF-8 body: the JVM's default charset may be another one.
+        String body = new String(payload, StandardCharsets.UTF_8);
         String expected = Crypto.hmacSha256(secret, timestamp + "." + body);
         String received = signature.substring(3);
 
@@ -66,11 +70,12 @@ public class Webhooks {
         Duration allowed = (tolerance == null || tolerance.isZero() || tolerance.isNegative())
                 ? DEFAULT_TOLERANCE
                 : tolerance;
-        long driftSeconds = Math.abs(System.currentTimeMillis() / 1000 - ts);
-        if (driftSeconds > allowed.getSeconds()) {
+        // To the millisecond, so that a tolerance under a second is not cut to 0 s.
+        Duration drift = driftFromNow(ts);
+        if (drift.compareTo(allowed) > 0) {
             throw new WebhookSignatureVerificationException(String.format(
-                    "Timestamp outside tolerance zone (%ds drift, allowed %ds).",
-                    driftSeconds, allowed.getSeconds()));
+                    "Timestamp outside tolerance zone (%ss drift, allowed %ss).",
+                    seconds(drift), seconds(allowed)));
         }
 
         try {
@@ -78,5 +83,21 @@ public class Webhooks {
         } catch (Exception e) {
             throw new WebhookSignatureVerificationException("Invalid webhook payload JSON.");
         }
+    }
+
+    private static Duration driftFromNow(long timestampSeconds) {
+        try {
+            long millis = Math.subtractExact(System.currentTimeMillis(), Math.multiplyExact(timestampSeconds, 1000L));
+            return Duration.ofMillis(Math.abs(millis));
+        } catch (ArithmeticException e) {
+            return Duration.ofSeconds(Long.MAX_VALUE);
+        }
+    }
+
+    private static String seconds(Duration duration) {
+        return BigDecimal.valueOf(duration.getSeconds())
+                .add(BigDecimal.valueOf(duration.getNano(), 9))
+                .stripTrailingZeros()
+                .toPlainString();
     }
 }

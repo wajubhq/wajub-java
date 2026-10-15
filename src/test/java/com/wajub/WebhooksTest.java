@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 
@@ -132,6 +133,70 @@ class WebhooksTest {
                     () -> w.constructEvent(payload.getBytes(), signature, timestamp, tolerance),
                     "tolerance " + tolerance);
             assertTrue(e.getMessage().contains("allowed 300s"), e.getMessage());
+        }
+    }
+
+    // The body was decoded with the JVM's default charset: where it is not
+    // UTF-8 (the tests run that way, see pom.xml), a delivery with an accent
+    // in it failed its signature check.
+    @Test
+    void constructEventReadsTheBodyAsUtf8() throws WebhookSignatureVerificationException {
+        String secret = "whsec_utf8";
+        String body = "{\"event\":\"payment.succeeded\",\"data\":{\"customer\":{\"name\":\"Éloïse Ndé\"},\"country\":\"Côte d’Ivoire\"}}";
+        byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        String signature = "v1=" + Crypto.hmacSha256(secret, timestamp + "." + body);
+
+        Map<String, Object> event = new Webhooks(secret).constructEvent(payload, signature, timestamp, null);
+
+        assertEquals("Côte d’Ivoire", ((Map<?, ?>) event.get("data")).get("country"));
+        assertEquals("Éloïse Ndé", ((Map<?, ?>) ((Map<?, ?>) event.get("data")).get("customer")).get("name"));
+    }
+
+    @Test
+    void constructEventNamesAMissingSignatureHeader() {
+        Webhooks w = new Webhooks("whsec_test");
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        for (String signature : new String[] {null, "", " "}) {
+            WebhookSignatureVerificationException e = assertThrows(
+                    WebhookSignatureVerificationException.class,
+                    () -> w.constructEvent("{}".getBytes(StandardCharsets.UTF_8), signature, timestamp, null));
+            assertEquals("Missing X-Wajub-Signature or X-Wajub-Timestamp header.", e.getMessage(),
+                    "signature " + signature);
+        }
+    }
+
+    // A tolerance under a second was cut to 0 s: a delivery was then accepted
+    // up to 999 ms late, as long as the clock had not turned to the next second.
+    @Test
+    void constructEventKeepsASubSecondTolerance() throws Exception {
+        String secret = "whsec_tolerance";
+        String payload = "{\"event\":\"test\"}";
+        Webhooks w = new Webhooks(secret);
+
+        // 700 to 800 ms into the second: a timestamp of this second is 700 ms old or more.
+        long now = waitUntilMillisIntoTheSecond(700, 800);
+        String timestamp = String.valueOf(now / 1000);
+        String signature = "v1=" + Crypto.hmacSha256(secret, timestamp + "." + payload);
+        WebhookSignatureVerificationException e = assertThrows(
+                WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, timestamp,
+                        Duration.ofMillis(500)));
+        assertTrue(e.getMessage().contains("allowed 0.5s"), e.getMessage());
+
+        // The same delivery passes a 1.5 s tolerance.
+        assertEquals("test", w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, timestamp,
+                Duration.ofMillis(1500)).get("event"));
+    }
+
+    private static long waitUntilMillisIntoTheSecond(int from, int to) throws InterruptedException {
+        while (true) {
+            long now = System.currentTimeMillis();
+            long into = now % 1000;
+            if (into >= from && into < to) {
+                return now;
+            }
+            Thread.sleep(into < from ? from - into : 1000 - into + from);
         }
     }
 }
