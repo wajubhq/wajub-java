@@ -568,10 +568,15 @@ class WajubClientTest {
         client.payments().processSplit("pay_1#x?y=1", Map.of(), null);
         client.payments().retrieve("pay_1%2Fcancel");
         client.customers().deleteTaxId("cus_1", "txi 1\\x", null);
+        client.refunds().retrieve("trx.1..2");
+        client.events().resend(".evt.", null);
 
         assertEquals("/payments/pay_1%23x%3Fy=1/splits", server.takeRequest().getPath());
         assertEquals("/payments/pay_1%252Fcancel", server.takeRequest().getPath());
         assertEquals("/customers/cus_1/tax_ids/txi%201%5Cx", server.takeRequest().getPath());
+        // Dots inside an id are part of it.
+        assertEquals("/refunds/trx.1..2", server.takeRequest().getPath());
+        assertEquals("/events/.evt./resend", server.takeRequest().getPath());
     }
 
     private static String signWebhook(String secret, String payload, long timestamp) {
