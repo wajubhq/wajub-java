@@ -37,7 +37,9 @@ this release, and are listed here for an upgrade from 1.1.1.
   machine, forward them with the Wajub CLI: `wajub listen`.
 
 ### Removed
-- `payments().initialize()`, an alias of `payments().create()`. Call `create()`.
+- **`payments().initialize()`.** Code that calls it no longer compiles. Call
+  `payments().create()` instead: it takes the same parameters, returns the
+  same `Payment` and sends the same request.
 
 ### Fixed
 - The README said amounts are passed in the smallest currency unit (cents).
