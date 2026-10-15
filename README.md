@@ -173,7 +173,7 @@ import com.wajub.exception.WajubException;
 try {
     client.payments().create(params, null);
 } catch (InvalidRequestException e) {
-    System.out.println(e.getErrors()); // field-level validation errors
+    System.out.println(e.getFieldErrors()); // every validation message, by field
 } catch (AuthenticationException e) {
     // check your API key
 } catch (WajubException e) {
@@ -191,7 +191,7 @@ try {
 | `WajubException` | Any other error status |
 | `ApiConnectionException` | No response: network error or timeout |
 
-Every exception carries `getMessage()`, `getCode()`, `getHttpStatus()`, `getErrors()` (field-level messages) and `getRaw()` (the response body).
+Every exception carries `getMessage()`, `getCode()`, `getHttpStatus()`, `getFieldErrors()` (every validation message of each field), `getErrors()` (the first message of each field) and `getRaw()` (the response body).
 
 ## Testing
 

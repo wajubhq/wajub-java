@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -146,16 +147,38 @@ final class HttpUtils {
             }
         }
 
-        Map<String, String> fieldErrors = extractFieldErrors(body);
+        Map<String, String> firstErrors = extractFieldErrors(body);
+        Map<String, List<String>> fieldErrors = extractAllFieldErrors(body);
 
         return switch (status) {
-            case 401 -> new AuthenticationException(message, code, status, fieldErrors, body);
-            case 403 -> new PermissionException(message, code, status, fieldErrors, body);
-            case 404 -> new NotFoundException(message, code, status, fieldErrors, body);
-            case 429 -> new RateLimitException(message, code, status, fieldErrors, body, retryAfter);
-            case 400, 422 -> new InvalidRequestException(message, code, status, fieldErrors, body);
-            default -> new WajubException(message, code, status, fieldErrors, body);
+            case 401 -> new AuthenticationException(message, code, status, firstErrors, fieldErrors, body);
+            case 403 -> new PermissionException(message, code, status, firstErrors, fieldErrors, body);
+            case 404 -> new NotFoundException(message, code, status, firstErrors, fieldErrors, body);
+            case 429 -> new RateLimitException(message, code, status, firstErrors, fieldErrors, body, retryAfter);
+            case 400, 422 -> new InvalidRequestException(message, code, status, firstErrors, fieldErrors, body);
+            default -> new WajubException(message, code, status, firstErrors, fieldErrors, body);
         };
+    }
+
+    /** Every message of each field, in the API's order; a field given as one string is a one-item list. */
+    private static Map<String, List<String>> extractAllFieldErrors(Map<String, Object> body) {
+        if (body == null || !(body.get("errors") instanceof Map<?, ?> errorMap)) {
+            return Map.of();
+        }
+        Map<String, List<String>> fieldErrors = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : errorMap.entrySet()) {
+            Object value = entry.getValue();
+            List<String> messages = new ArrayList<>();
+            if (value instanceof List<?> list) {
+                list.forEach(message -> messages.add(String.valueOf(message)));
+            } else {
+                messages.add(String.valueOf(value));
+            }
+            if (!messages.isEmpty()) {
+                fieldErrors.put(String.valueOf(entry.getKey()), messages);
+            }
+        }
+        return fieldErrors;
     }
 
     @SuppressWarnings("unchecked")

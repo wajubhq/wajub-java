@@ -169,6 +169,46 @@ class WajubClientTest {
         assertEquals(422, err.getHttpStatus());
     }
 
+    // getErrors() keeps the first message of each field only: a field the API
+    // answers with two messages lost the second.
+    @Test
+    void invalidRequestKeepsEveryMessageOfAField() throws Exception {
+        enqueueResponses(req -> new MockResponse()
+                .setResponseCode(422)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"message\":\"Validation failed\",\"code\":\"validation_error\",\"errors\":{"
+                        + "\"amount\":[\"The amount must be at least 1.\",\"The amount must be a number.\"],"
+                        + "\"currency\":[\"The currency is required.\"],"
+                        + "\"email\":\"The email is invalid.\"}}"));
+
+        Wajub client = newClient();
+        com.wajub.exception.InvalidRequestException err = assertThrows(
+                com.wajub.exception.InvalidRequestException.class,
+                () -> client.payments().create(Map.of("amount", -1), null));
+
+        assertEquals(List.of("The amount must be at least 1.", "The amount must be a number."),
+                err.getFieldErrors().get("amount"));
+        assertEquals(List.of("The currency is required."), err.getFieldErrors().get("currency"));
+        assertEquals(List.of("The email is invalid."), err.getFieldErrors().get("email"));
+        assertEquals(List.of("amount", "currency", "email"), List.copyOf(err.getFieldErrors().keySet()));
+        assertThrows(UnsupportedOperationException.class, () -> err.getFieldErrors().get("amount").add("x"));
+        assertThrows(UnsupportedOperationException.class, () -> err.getFieldErrors().remove("amount"));
+
+        // Unchanged: the first message of each field.
+        assertEquals("The amount must be at least 1.", err.getErrors().get("amount"));
+        assertEquals("The currency is required.", err.getErrors().get("currency"));
+        assertEquals("The email is invalid.", err.getErrors().get("email"));
+    }
+
+    @Test
+    void anExceptionBuiltWithFirstMessagesListsThemAsFieldErrors() {
+        com.wajub.exception.InvalidRequestException err = new com.wajub.exception.InvalidRequestException(
+                "Validation failed", "validation_error", 422, Map.of("amount", "Must be positive"), null);
+
+        assertEquals(Map.of("amount", List.of("Must be positive")), err.getFieldErrors());
+        assertEquals(Map.of(), new com.wajub.exception.ApiConnectionException("offline").getFieldErrors());
+    }
+
     @Test
     void paymentsCreateUnwrapsUrls() throws Exception {
         enqueueResponses(req -> jsonResponse(200, Map.of(

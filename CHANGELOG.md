@@ -16,6 +16,10 @@ The library uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Trailing zeros are dropped, so compare it with `compareTo`, not `equals`.
   Put it back in a request as is, for a refund for instance, and it goes out
   with its decimals; a `BigDecimal` you pass goes out digit for digit.
+- **`getFieldErrors()` on API exceptions, every validation message of each
+  field.** A `422` can give a field several messages; `getErrors()` keeps only
+  the first one. `e.getFieldErrors().get("amount")` lists them all, in the
+  order the API sent them. `getErrors()` is unchanged.
 
 ### Deprecated
 - **`Payment.getAmount()`.** It returns a `long` and drops the decimals:
