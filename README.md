@@ -4,27 +4,17 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-blue)](https://openjdk.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Official **server-side** SDK for the [Wajub merchant API](https://docs.wajub.com). Accept mobile-money and card payments across Africa with a Stripe-inspired, resource-oriented client.
+Official server-side SDK for the [Wajub API](https://docs.wajub.com): create payments, confirm them, pay out and verify webhooks from your Java backend.
 
-Use **[Wajub.js](https://docs.wajub.com/libraries/components/js)** for embedded checkout in the browser. Use this SDK on your backend with a secret (`sk_`) or restricted (`rk_`) API key — never expose secret keys in client-side code.
-
-## Features
-
-- Resource-oriented API (`client.payments()`, `client.customers()`, …)
-- Automatic `Idempotency-Key` on mutating requests (override per call)
-- Typed exceptions per HTTP status (`AuthenticationException`, `RateLimitException`, …)
-- Automatic retries on 429, 5xx and network errors (max 2, exponential backoff), with the same `Idempotency-Key`
-- A `409` for an `Idempotency-Key` still being processed is retried with the same key (after 2 then 4 s)
-- Page-based pagination with `autoPaging()` and `getNextPage()`
-- Webhook signature verification (HMAC-SHA256, timestamp tolerance)
+It runs on your server with a secret (`sk.…`, `sk_test.…`) or restricted (`rk.…`, `rk_test.…`) API key. Never expose these keys in client-side code: in the browser, use [Wajub.js](https://docs.wajub.com/libraries/components/js) with your publishable key (`pk.…`, `pk_test.…`).
 
 ## Requirements
 
 | Requirement | Version |
 |-------------|---------|
 | Java | 17 or later |
-| Build tool | Maven or Gradle |
-| HTTP / JSON | [OkHttp](https://square.github.io/okhttp/) 4.12+, [Jackson](https://github.com/FasterXML/jackson) 2.18+ (installed automatically) |
+
+The SDK brings [OkHttp](https://square.github.io/okhttp/) 4.12 and [Jackson](https://github.com/FasterXML/jackson) 2.18 with it.
 
 ## Installation
 
@@ -46,125 +36,71 @@ implementation("com.wajub:wajub-java:1.3.0")
 
 ## Quick start
 
-Amounts are in the **major unit** of the currency, the way the API reads and returns them:
-`15000` with `XAF` is fifteen thousand francs, and a currency with decimals takes a decimal,
-`new BigDecimal("12.50")` with `GHS`. A payment's amount, decimals included, is
-`payment.getAmountDecimal()` (`BigDecimal`); `payment.getAmount()` drops the decimals and is
-deprecated.
-
-### Redirect checkout
+Amounts are in the currency's **main unit**: `12.50` for GHS 12.50, `5000` for XAF 5,000. Pass a decimal as a `BigDecimal`, `new BigDecimal("12.50")`.
 
 ```java
-import com.wajub.Wajub;
 import com.wajub.Payment;
+import com.wajub.Wajub;
+import java.util.Map;
 
-Wajub client = Wajub.create(System.getenv("WAJUB_API_KEY"));
-
-Payment payment = client.payments().create(java.util.Map.of(
-    "amount", 15000,
-    "currency", "XAF",
-    "email", "buyer@example.com",
-    "callback", "https://shop.example.com/order/complete"
-), null);
-
-System.out.println(payment.getAuthorizationUrl());
-```
-
-### Inline / overlay (embed token)
-
-```java
-Payment embed = client.payments().create(java.util.Map.of(
-    "amount", 15000,
-    "currency", "XAF",
-    "metadata", java.util.Map.of("mode", "embed")
-), null);
-
-// Pass to Wajub.js: embed.getAuthorizationToken()
-```
-
-## Spring Boot
-
-```java
-@Configuration
-public class WajubConfig {
-    @Bean
-    Wajub wajubClient(@Value("${wajub.api-key}") String apiKey,
-                      @Value("${wajub.webhook-secret:}") String webhookSecret) {
-        return Wajub.create(Wajub.Config.builder()
-            .apiKey(apiKey)
-            .webhookSecret(webhookSecret.isBlank() ? null : webhookSecret)
-            .build());
-    }
-}
-```
-
-### Webhook controller
-
-Use the **raw request body**:
-
-```java
-@PostMapping("/webhooks/wajub")
-public ResponseEntity<Void> handleWebhook(
-        @RequestBody byte[] body,
-        @RequestHeader("X-Wajub-Signature") String signature,
-        @RequestHeader("X-Wajub-Timestamp") String timestamp) {
-    try {
-        Map<String, Object> event = wajub.webhooks().constructEvent(
-            body, signature, timestamp, null);
-
-        if ("payment.succeeded".equals(event.get("type"))) {
-            // fulfill order
-        }
-    } catch (WebhookSignatureVerificationException e) {
-        return ResponseEntity.badRequest().build();
-    }
-    return ResponseEntity.ok().build();
-}
-```
-
-## Configuration
-
-| Variable | Description |
-|----------|-------------|
-| `WAJUB_API_KEY` | Secret or restricted API key (`sk_`, `sk_test.`, `rk_`, …) |
-| `WAJUB_WEBHOOK_SECRET` | Webhook signing secret (`whsec_`) for `constructEvent()` |
-
-Test mode is selected by your API key prefix (`sk_test.…`), not by the API URL. Production calls always go to `https://api.wajub.com`.
-
-Explicit configuration:
-
-```java
 Wajub client = Wajub.create(Wajub.Config.builder()
     .apiKey(System.getenv("WAJUB_API_KEY"))
     .webhookSecret(System.getenv("WAJUB_WEBHOOK_SECRET"))
-    .idempotencyKeyPrefix("myshop")
     .build());
+
+Payment payment = client.payments().create(Map.of(
+    "amount", 15000,
+    "currency", "XAF",
+    "email", "buyer@example.com",
+    "reference", "order-1042",
+    "callback", "https://shop.example.com/order/complete"
+), null);
+
+// Redirect the customer to payment.getAuthorizationUrl(),
+// or mount payment.getAuthorizationToken() with Wajub.js in your page.
 ```
 
-## Resources (merchant API)
+Then confirm the result on your server: handle the `payment.succeeded` webhook, or call `client.payments().retrieve(payment.getId())`.
 
-| Service | Methods |
-|---------|---------|
-| `client.global()` | `ping`, `channels`, `countries`, `currencies` |
-| `client.payments()` | `create`, `retrieve`, `list`, `cancel`, `process`, `processSplit`, `listRefunds` |
-| `client.customers()` | `create`, `retrieve`, `update`, `delete`, `list`, `block`, `unblock`, `activate`, `deactivate`, `listTaxIds`, `createTaxId`, `deleteTaxId` |
-| `client.refunds()` | `create`, `retrieve`, `list` |
-| `client.transfers()` | `create`, `retrieve`, `list` |
-| `client.beneficiaries()` | `create`, `retrieve`, `update`, `delete`, `list` |
-| `client.links()` | `create`, `retrieve`, `update`, `delete`, `list` |
-| `client.invoices()` | `create`, `retrieve`, `update`, `delete`, `list`, `send`, `markPaid`, `cancel` |
-| `client.accounts()` | `create`, `retrieve`, `update`, `delete`, `list`, `regenerateToken` |
-| `client.webhookEndpoints()` | `create`, `retrieve`, `update`, `delete`, `list`, `rotateSecret` |
-| `client.balance()` | `retrieve` |
-| `client.events()` | `list`, `retrieve`, `resend` |
-| `client.disputes()` | `list`, `retrieve`, `submitEvidence`, `accept`, `close`, `sendMessage` |
-| `client.identity()` | `resolve`, `validate` |
-| `client.tax()` | `getSettings`, `updateSettings`, `rates`, `calculate`, `reports`, `listCodes`, `retrieveCode`, `listRegistrations`, `createRegistration`, `retrieveRegistration`, `updateRegistration`, `deleteRegistration`, `jurisdictions`, `thresholds`, `thresholdAlerts` |
-| `client.shield()` | `getSettings`, `updateSettings`, `stats`, `listBlocklist`, `addToBlocklist`, `removeFromBlocklist` |
-| `client.listen()` | `config`, `auth` |
-| `client.webhooks()` | `constructEvent` (local — no HTTP) |
+A `Payment` gives `getId()`, `getStatus()`, `getAmountDecimal()` (the amount with its decimals, a `BigDecimal`: compare it with `compareTo`, not `equals`), `getCurrency()`, `getAuthorizationUrl()` and `getAuthorizationToken()`; every other field the API returned is in `getRaw()`. `getAmount()` drops the decimals and is deprecated.
 
-## Sync (Connect)
+## Configuration
+
+| Builder method | Description |
+|----------------|-------------|
+| `apiKey` | Secret or restricted API key (`sk.…`, `sk_test.…`, `rk.…`, `rk_test.…`). Falls back to `WAJUB_API_KEY`. |
+| `webhookSecret` | Webhook signing secret (`whsec_…`), needed only for `webhooks().constructEvent()`. Falls back to `WAJUB_WEBHOOK_SECRET`. |
+| `httpClient` | Your own `OkHttpClient`, for a proxy, an interceptor or timeouts. |
+
+`Wajub.create(apiKey)` is a shortcut for a client with just a key. Without a key, `Wajub.create` throws an `IllegalArgumentException`. The client is thread safe: build it once and share it.
+
+## Resources
+
+| Purpose | Service | Methods |
+|---------|---------|---------|
+| Payments | `client.payments()` | `create`, `retrieve`, `list`, `cancel`, `process`, `processSplit`, `listRefunds` |
+| Refunds | `client.refunds()` | `create`, `retrieve`, `list` |
+| Customers | `client.customers()` | `create`, `retrieve`, `update`, `delete`, `list`, `block`, `unblock`, `activate`, `deactivate`, `listTaxIds`, `createTaxId`, `deleteTaxId` |
+| Payment links | `client.links()` | `create`, `retrieve`, `update`, `delete`, `list` |
+| Invoices | `client.invoices()` | `create`, `retrieve`, `update`, `delete`, `list`, `send`, `markPaid`, `cancel` |
+| Payouts | `client.transfers()` | `create`, `retrieve`, `list` |
+| Payout recipients | `client.beneficiaries()` | `create`, `retrieve`, `update`, `delete`, `list` |
+| Destination checks | `client.identity()` | `resolve`, `validate` |
+| Balance | `client.balance()` | `retrieve` |
+| Disputes | `client.disputes()` | `list`, `retrieve`, `submitEvidence`, `accept`, `close`, `sendMessage` |
+| Events | `client.events()` | `list`, `retrieve`, `resend` |
+| Webhook endpoints | `client.webhookEndpoints()` | `create`, `retrieve`, `update`, `delete`, `list`, `rotateSecret` |
+| Webhook verification | `client.webhooks()` | `constructEvent` |
+| Connected accounts (Sync) | `client.accounts()` | `create`, `retrieve`, `update`, `delete`, `list`, `regenerateToken` |
+| Tax | `client.tax()` | `getSettings`, `updateSettings`, `rates`, `calculate`, `reports`, `listCodes`, `retrieveCode`, `listRegistrations`, `createRegistration`, `retrieveRegistration`, `updateRegistration`, `deleteRegistration`, `jurisdictions`, `thresholds`, `thresholdAlerts` |
+| Fraud (Shield) | `client.shield()` | `getSettings`, `updateSettings`, `stats`, `listBlocklist`, `addToBlocklist`, `removeFromBlocklist` |
+| Reference data | `client.global()` | `ping`, `channels`, `countries`, `currencies` |
+
+Parameters are a `Map<String, Object>` with the API's field names. The last argument of a mutating call is a `RequestOptions`, usually `null`.
+
+## Acting for a connected account
+
+Pass the connected account with `setSync` on the call:
 
 ```java
 import com.wajub.RequestOptions;
@@ -174,40 +110,52 @@ client.payments().create(params, new RequestOptions().setSync("acct_sync_ref"));
 
 ## Webhooks
 
+Pass the **raw request body**, not parsed JSON, with the `X-Wajub-Signature` and `X-Wajub-Timestamp` headers. With Spring:
+
 ```java
-import java.util.Map;
+@PostMapping("/webhooks/wajub")
+public ResponseEntity<Void> handleWebhook(
+        @RequestBody byte[] body,
+        @RequestHeader("X-Wajub-Signature") String signature,
+        @RequestHeader("X-Wajub-Timestamp") String timestamp) {
+    try {
+        Map<String, Object> event = client.webhooks().constructEvent(body, signature, timestamp, null);
 
-Map<String, Object> event = client.webhooks().constructEvent(
-    body,    // byte[] — raw body, not parsed JSON
-    request.getHeader("X-Wajub-Signature"),
-    request.getHeader("X-Wajub-Timestamp"),
-    null
-);
-
-if ("payment.succeeded".equals(event.get("type"))) {
-    // fulfill order
+        if ("payment.succeeded".equals(event.get("event"))) {
+            // fulfil the order
+        }
+    } catch (WebhookSignatureVerificationException e) {
+        return ResponseEntity.badRequest().build();
+    }
+    return ResponseEntity.ok().build();
 }
 ```
 
-During local development, use the [Wajub CLI](https://github.com/wajubhq/wajub-cli) to forward webhooks to your machine.
+A delivery that does not verify throws `com.wajub.exception.WebhookSignatureVerificationException`. If your server's clock drifts, pass a tolerance such as `Duration.ofMinutes(10)` as the last argument; `null` keeps the default.
 
 ## Pagination
 
+`list` returns a page you can walk one page at a time, or collect across all pages:
+
 ```java
+import com.wajub.PagedResult;
+import java.util.List;
+
 PagedResult page = client.payments().list(Map.of("per_page", 50));
+System.out.println(page.getData() + " " + page.getMeta());
+
+if (page.hasMore()) {
+    PagedResult next = page.getNextPage();
+}
 
 List<Map<String, Object>> all = page.autoPaging();
-
-// Manual page control
-PagedResult first = client.payments().list(Map.of());
-if (first.hasMore()) {
-    PagedResult second = first.getNextPage();
-}
 ```
+
+Rows are `Map<String, Object>`, read by key.
 
 ## Idempotency
 
-POST and PUT requests automatically receive an `Idempotency-Key` header. Pass your own:
+Temporary failures are retried for you. To make a create safe to repeat on your side too, after a restart or in a job retry, pass your own key:
 
 ```java
 client.payments().create(params, new RequestOptions().setIdempotencyKey("order-" + orderId));
@@ -215,31 +163,43 @@ client.payments().create(params, new RequestOptions().setIdempotencyKey("order-"
 
 ## Error handling
 
+API errors throw unchecked subclasses of `com.wajub.exception.WajubException`:
+
 ```java
-import com.wajub.exception.InvalidRequestException;
 import com.wajub.exception.AuthenticationException;
-import com.wajub.exception.RateLimitException;
+import com.wajub.exception.InvalidRequestException;
+import com.wajub.exception.WajubException;
 
 try {
     client.payments().create(params, null);
 } catch (InvalidRequestException e) {
     System.out.println(e.getErrors()); // field-level validation errors
 } catch (AuthenticationException e) {
-    // 401 — bad API key
-} catch (RateLimitException e) {
-    // 429 — back off and retry
+    // check your API key
+} catch (WajubException e) {
+    System.out.println(e.getCode() + " " + e.getHttpStatus() + " " + e.getMessage());
 }
 ```
 
-## Development
+| Exception | Thrown on |
+|-----------|-----------|
+| `AuthenticationException` | `401` |
+| `PermissionException` | `403` |
+| `NotFoundException` | `404` |
+| `InvalidRequestException` | `400`, `422` |
+| `RateLimitException` | `429`, with `getRetryAfter()` in seconds |
+| `WajubException` | Any other error status |
+| `ApiConnectionException` | No response: network error or timeout |
 
-```bash
-mvn test
-```
+Every exception carries `getMessage()`, `getCode()`, `getHttpStatus()`, `getErrors()` (field-level messages) and `getRaw()` (the response body).
+
+## Testing
+
+Use a sandbox key (`sk_test.…`): the key chooses the environment, and no real money moves. The test phone numbers and cards are on [Test scenarios](https://docs.wajub.com/developer-tools/testing/test-scenarios). To receive webhooks on your machine, forward them with the [Wajub CLI](https://docs.wajub.com/developer-tools/cli/listen).
 
 ## Documentation & support
 
-- Full API reference: [docs.wajub.com/libraries/sdks/java](https://docs.wajub.com/libraries/sdks/java)
+- Documentation: [docs.wajub.com/libraries/sdks/java](https://docs.wajub.com/libraries/sdks/java)
 - Report issues: [github.com/wajubhq/wajub-java/issues](https://github.com/wajubhq/wajub-java/issues)
 
 ## License
