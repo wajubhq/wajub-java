@@ -34,19 +34,23 @@ Use **[Wajub.js](https://docs.wajub.com/libraries/components/js)** for embedded 
 <dependency>
     <groupId>com.wajub</groupId>
     <artifactId>wajub-java</artifactId>
-    <version>1.2.1</version>
+    <version>1.3.0</version>
 </dependency>
 ```
 
 **Gradle:**
 
 ```kotlin
-implementation("com.wajub:wajub-java:1.2.1")
+implementation("com.wajub:wajub-java:1.3.0")
 ```
 
 ## Quick start
 
-Amounts are passed in the **smallest currency unit** (e.g. cents for EUR/USD; whole francs for XAF).
+Amounts are in the **major unit** of the currency, the way the API reads and returns them:
+`15000` with `XAF` is fifteen thousand francs, and a currency with decimals takes a decimal,
+`new BigDecimal("12.50")` with `GHS`. A payment's amount, decimals included, is
+`payment.getAmountDecimal()` (`BigDecimal`); `payment.getAmount()` drops the decimals and is
+deprecated.
 
 ### Redirect checkout
 

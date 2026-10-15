@@ -1,5 +1,7 @@
 package com.wajub;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Map;
 
 /** Represents a Wajub payment (transaction). */
@@ -7,13 +9,13 @@ public class Payment {
 
     private final String id;
     private final String status;
-    private final long amount;
+    private final BigDecimal amount;
     private final String currency;
     private final String authorizationUrl;
     private final String authorizationToken;
     private final Map<String, Object> raw;
 
-    Payment(String id, String status, long amount, String currency,
+    Payment(String id, String status, BigDecimal amount, String currency,
             String authorizationUrl, String authorizationToken, Map<String, Object> raw) {
         this.id = id;
         this.status = status;
@@ -32,7 +34,25 @@ public class Payment {
         return status;
     }
 
+    /**
+     * The amount without its decimals: GHS 12.50 reads {@code 12}.
+     *
+     * @deprecated drops the decimals of every currency that has them. Use
+     *     {@link #getAmountDecimal()}.
+     */
+    @Deprecated(since = "1.3.0")
     public long getAmount() {
+        return amount.longValue();
+    }
+
+    /**
+     * The amount in the currency's major unit, decimals included, as the API
+     * sends it: {@code 15000} for XAF 15,000, {@code 12.5} for GHS 12.50.
+     * Trailing zeros are dropped, so compare it with {@link BigDecimal#compareTo},
+     * not {@code equals}. Never {@code null}: a payment without an amount reads
+     * {@code 0}.
+     */
+    public BigDecimal getAmountDecimal() {
         return amount;
     }
 
@@ -57,7 +77,7 @@ public class Payment {
 
         String id = stringValue(transaction.get("id"));
         String status = stringValue(transaction.get("status"));
-        long amount = numberValue(transaction.get("amount"));
+        BigDecimal amount = decimalValue(transaction.get("amount"));
         String currency = stringValue(transaction.get("currency"));
 
         Object token = body.get("authorization_token");
@@ -87,10 +107,36 @@ public class Payment {
         return value != null ? String.valueOf(value) : "";
     }
 
-    private static long numberValue(Object value) {
-        if (value instanceof Number n) {
-            return n.longValue();
+    /**
+     * An amount as the API sends it, a JSON number or a numeric string
+     * ({@code "12.50"}), in the currency's major unit. A double is read through
+     * its shortest decimal form, so {@code 12.1} stays {@code 12.1}. Anything
+     * else, or no amount, reads {@code 0}.
+     */
+    static BigDecimal decimalValue(Object value) {
+        BigDecimal decimal = null;
+        try {
+            if (value instanceof BigDecimal d) {
+                decimal = d;
+            } else if (value instanceof BigInteger i) {
+                decimal = new BigDecimal(i);
+            } else if (value instanceof Double || value instanceof Float) {
+                double d = ((Number) value).doubleValue();
+                if (Double.isFinite(d)) {
+                    decimal = value instanceof Float f ? new BigDecimal(Float.toString(f)) : BigDecimal.valueOf(d);
+                }
+            } else if (value instanceof Number n) {
+                decimal = BigDecimal.valueOf(n.longValue());
+            } else if (value instanceof String s) {
+                decimal = new BigDecimal(s.trim());
+            }
+        } catch (NumberFormatException ignored) {
+            decimal = null;
         }
-        return 0L;
+        if (decimal == null) {
+            return BigDecimal.ZERO;
+        }
+        decimal = decimal.stripTrailingZeros();
+        return decimal.scale() < 0 ? decimal.setScale(0) : decimal;
     }
 }

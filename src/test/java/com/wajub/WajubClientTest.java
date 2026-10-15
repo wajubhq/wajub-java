@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -351,6 +353,71 @@ class WajubClientTest {
         assertEquals("validation_error", err.getCode());
         assertEquals(422, err.getHttpStatus());
         assertEquals("Must be positive", err.getErrors().get("amount"));
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void paymentAmountKeepsItsDecimals() throws Exception {
+        // The amount as the API sends it, the currency, getAmountDecimal(), getAmount().
+        String[][] cases = {
+                {"15000", "XAF", "15000", "15000"},
+                {"12.5", "GHS", "12.5", "12"},
+                {"\"12.50\"", "GHS", "12.5", "12"},
+                {"12.1", "GHS", "12.1", "12"},
+                {"0.01", "USD", "0.01", "0"},
+                {"1.234", "KWD", "1.234", "1"},
+                {"9876543210.99", "NGN", "9876543210.99", "9876543210"},
+        };
+
+        Wajub client = newClient();
+        for (String[] c : cases) {
+            server.enqueue(new MockResponse()
+                    .setHeader("Content-Type", "application/json")
+                    .setBody("{\"transaction\":{\"id\":\"pay_1\",\"amount\":" + c[0]
+                            + ",\"currency\":\"" + c[1] + "\"}}"));
+
+            Payment payment = client.payments().retrieve("pay_1");
+            assertEquals(c[2], payment.getAmountDecimal().toPlainString(), c[0]);
+            assertEquals(Long.parseLong(c[3]), payment.getAmount(), c[0]);
+        }
+    }
+
+    @Test
+    void decimalValueReadsEveryFormAnAmountTakes() {
+        assertEquals("12.5", Payment.decimalValue("12.50").toPlainString());
+        assertEquals("7.25", Payment.decimalValue(" 7.25 ").toPlainString());
+        assertEquals("12.1", Payment.decimalValue(12.1f).toPlainString());
+        assertEquals("15000", Payment.decimalValue(15000).toPlainString());
+        assertEquals("15000", Payment.decimalValue(15000L).toPlainString());
+        assertEquals("15000", Payment.decimalValue(15000.0).toPlainString());
+        assertEquals("1000", Payment.decimalValue("1E+3").toPlainString());
+        assertEquals("12345678901234567890", Payment.decimalValue(new BigInteger("12345678901234567890")).toPlainString());
+        assertEquals(0, BigDecimal.ZERO.compareTo(Payment.decimalValue(null)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(Payment.decimalValue("not a number")));
+        assertEquals(0, BigDecimal.ZERO.compareTo(Payment.decimalValue(Double.NaN)));
+    }
+
+    @Test
+    void amountIsSentWithItsDecimals() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"transaction\":{\"id\":\"pay_1\",\"amount\":12.1,\"currency\":\"GHS\"}}"));
+        server.enqueue(jsonResponse(200, Map.of("refund", Map.of("id", "ref_1"))));
+        server.enqueue(jsonResponse(200, Map.of("transaction", Map.of("id", "pay_2"))));
+
+        Wajub client = newClient();
+        Payment payment = client.payments().create(Map.of(
+                "amount", new BigDecimal("12.10"), "currency", "GHS", "email", "buyer@example.com"), null);
+        // The amount read back goes out again unchanged.
+        client.refunds().create(Map.of("payment_id", payment.getId(), "amount", payment.getAmountDecimal()), null);
+        client.payments().create(Map.of(
+                "amount", new BigDecimal("1.234"), "currency", "KWD", "email", "buyer@example.com"), null);
+
+        // The body as written, digit for digit.
+        for (String want : new String[] {"\"amount\":12.10", "\"amount\":12.1", "\"amount\":1.234"}) {
+            String body = server.takeRequest().getBody().readUtf8();
+            assertTrue(body.contains(want + ",") || body.contains(want + "}"), body);
+        }
     }
 
     private static String signWebhook(String secret, String payload, long timestamp) {
