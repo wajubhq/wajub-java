@@ -104,4 +104,34 @@ class WebhooksTest {
         Map<String, Object> event = w.constructEvent(payload.getBytes(), signature, timestamp, Duration.ZERO);
         assertEquals("test", event.get("event"));
     }
+
+    @Test
+    void constructEventAcceptsAFreshDeliveryWithANegativeTolerance() throws WebhookSignatureVerificationException {
+        String secret = "whsec_tolerance";
+        String payload = "{\"event\":\"test\"}";
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        String signature = "v1=" + Crypto.hmacSha256(secret, timestamp + "." + payload);
+
+        Webhooks w = new Webhooks(secret);
+        Map<String, Object> event = w.constructEvent(
+                payload.getBytes(), signature, timestamp, Duration.ofSeconds(-60));
+        assertEquals("test", event.get("event"));
+    }
+
+    @Test
+    void constructEventKeepsTheDefaultWindowForAZeroOrNegativeTolerance() {
+        String secret = "whsec_tolerance";
+        String payload = "{\"event\":\"test\"}";
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000 - 600);
+        String signature = "v1=" + Crypto.hmacSha256(secret, timestamp + "." + payload);
+
+        Webhooks w = new Webhooks(secret);
+        for (Duration tolerance : new Duration[] {null, Duration.ZERO, Duration.ofSeconds(-1)}) {
+            WebhookSignatureVerificationException e = assertThrows(
+                    WebhookSignatureVerificationException.class,
+                    () -> w.constructEvent(payload.getBytes(), signature, timestamp, tolerance),
+                    "tolerance " + tolerance);
+            assertTrue(e.getMessage().contains("allowed 300s"), e.getMessage());
+        }
+    }
 }

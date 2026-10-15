@@ -26,6 +26,10 @@ The library uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The README said amounts are passed in the smallest currency unit (cents).
   Amounts are in the currency's main unit: send `12.50` for GHS 12.50, not
   `1250`. Currencies without decimals, such as XAF and XOF, are not affected.
+- **`webhooks().constructEvent()` with a negative tolerance** threw
+  `WebhookSignatureVerificationException` for every delivery, even a fresh
+  one. A negative tolerance now keeps the default 300 seconds, as `null` and
+  zero do.
 
 ## [1.2.1] — 2026-10-12
 

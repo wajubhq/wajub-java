@@ -24,7 +24,8 @@ public class Webhooks {
      * @param payload   raw request body
      * @param signature value of X-Wajub-Signature header
      * @param timestamp value of X-Wajub-Timestamp header
-     * @param tolerance maximum allowed timestamp drift; null or zero uses default (300s)
+     * @param tolerance maximum allowed timestamp drift; null, zero or negative keeps the
+     *                  default 300 seconds, so replay protection cannot be switched off
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> constructEvent(
@@ -62,7 +63,9 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException("Invalid webhook timestamp.");
         }
 
-        Duration allowed = (tolerance == null || tolerance.isZero()) ? DEFAULT_TOLERANCE : tolerance;
+        Duration allowed = (tolerance == null || tolerance.isZero() || tolerance.isNegative())
+                ? DEFAULT_TOLERANCE
+                : tolerance;
         long driftSeconds = Math.abs(System.currentTimeMillis() / 1000 - ts);
         if (driftSeconds > allowed.getSeconds()) {
             throw new WebhookSignatureVerificationException(String.format(
