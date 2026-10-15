@@ -8,6 +8,7 @@ import com.wajub.exception.NotFoundException;
 import com.wajub.exception.PermissionException;
 import com.wajub.exception.RateLimitException;
 import com.wajub.exception.WajubException;
+import okhttp3.HttpUrl;
 
 import java.security.SecureRandom;
 import java.util.HexFormat;
@@ -25,6 +26,7 @@ final class HttpUtils {
     private static final Pattern BEARER_PREFIX = Pattern.compile("(?i)^Bearer\\s+");
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final HttpUrl SEGMENT_BASE = HttpUrl.get(API_URL);
 
     private HttpUtils() {}
 
@@ -37,6 +39,19 @@ final class HttpUtils {
             key = BEARER_PREFIX.matcher(key).replaceFirst("").trim();
         }
         return key;
+    }
+
+    /**
+     * The id as one segment of a request path, percent-encoded. Wajub ids are never empty,
+     * "." or "..", and never contain "/": such an id would reach another path, so it is
+     * refused before anything is sent.
+     */
+    static String pathSegment(String id) {
+        if (id == null || id.isEmpty() || id.equals(".") || id.equals("..") || id.indexOf('/') >= 0) {
+            throw new IllegalArgumentException("wajub: invalid id " + (id == null ? "null" : "\"" + id + "\"")
+                    + ": a Wajub id is never empty, \".\" or \"..\", and never contains \"/\"");
+        }
+        return SEGMENT_BASE.newBuilder().addPathSegment(id).build().encodedPath().substring(1);
     }
 
     static String defaultApiUrl() {

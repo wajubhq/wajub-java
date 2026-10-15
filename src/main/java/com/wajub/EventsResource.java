@@ -17,12 +17,12 @@ public class EventsResource {
     }
 
     public Map<String, Object> retrieve(String id) throws WajubException {
-        Map<String, Object> res = base.get("/events/" + id, null);
+        Map<String, Object> res = base.get("/events/" + HttpUtils.pathSegment(id), null);
         return HttpUtils.pickResource(res, "event");
     }
 
     public Map<String, Object> resend(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/events/" + id + "/resend", null, opts);
+        Map<String, Object> res = base.post("/events/" + HttpUtils.pathSegment(id) + "/resend", null, opts);
         return HttpUtils.pickResource(res, "event");
     }
 }

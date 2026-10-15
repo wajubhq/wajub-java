@@ -17,29 +17,30 @@ public class DisputesResource {
     }
 
     public Map<String, Object> retrieve(String id) throws WajubException {
-        Map<String, Object> res = base.get("/disputes/" + id, null);
+        Map<String, Object> res = base.get("/disputes/" + HttpUtils.pathSegment(id), null);
         return HttpUtils.pickResource(res, "dispute");
     }
 
     public Map<String, Object> submitEvidence(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.post("/disputes/" + id + "/submit-evidence", params, opts);
+        String path = "/disputes/" + HttpUtils.pathSegment(id) + "/submit-evidence";
+        Map<String, Object> res = base.post(path, params, opts);
         return HttpUtils.pickResource(res, "dispute");
     }
 
     public Map<String, Object> accept(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/disputes/" + id + "/accept", null, opts);
+        Map<String, Object> res = base.post("/disputes/" + HttpUtils.pathSegment(id) + "/accept", null, opts);
         return HttpUtils.pickResource(res, "dispute");
     }
 
     public Map<String, Object> close(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/disputes/" + id + "/close", null, opts);
+        Map<String, Object> res = base.post("/disputes/" + HttpUtils.pathSegment(id) + "/close", null, opts);
         return HttpUtils.pickResource(res, "dispute");
     }
 
     public Map<String, Object> sendMessage(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.post("/disputes/" + id + "/messages", params, opts);
+        Map<String, Object> res = base.post("/disputes/" + HttpUtils.pathSegment(id) + "/messages", params, opts);
         return HttpUtils.pickResource(res, "dispute");
     }
 }

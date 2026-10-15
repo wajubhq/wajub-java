@@ -18,7 +18,7 @@ public class PaymentsResource {
     }
 
     public Payment retrieve(String id) throws WajubException {
-        Map<String, Object> res = base.get("/payments/" + id, null);
+        Map<String, Object> res = base.get("/payments/" + HttpUtils.pathSegment(id), null);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
     }
 
@@ -27,23 +27,23 @@ public class PaymentsResource {
     }
 
     public Payment cancel(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.delete("/payments/" + id, opts);
+        Map<String, Object> res = base.delete("/payments/" + HttpUtils.pathSegment(id), opts);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
     }
 
     public Payment process(String id, Map<String, Object> params, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/payments/" + id, params, opts);
+        Map<String, Object> res = base.post("/payments/" + HttpUtils.pathSegment(id), params, opts);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
     }
 
     public Payment processSplit(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.post("/payments/" + id + "/splits", params, opts);
+        Map<String, Object> res = base.post("/payments/" + HttpUtils.pathSegment(id) + "/splits", params, opts);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
     }
 
     public ListResult listRefunds(String id, Map<String, Object> params) throws WajubException {
-        Map<String, Object> res = base.get("/payments/" + id + "/refunds", params);
+        Map<String, Object> res = base.get("/payments/" + HttpUtils.pathSegment(id) + "/refunds", params);
         return HttpUtils.pickList(res, "refunds");
     }
 }

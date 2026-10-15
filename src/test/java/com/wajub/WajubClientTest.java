@@ -493,6 +493,87 @@ class WajubClientTest {
         }
     }
 
+    private interface IdCall {
+        void call(String id) throws Exception;
+    }
+
+    private static Map<String, IdCall> idPathMethods(Wajub client) {
+        Map<String, Object> p = Map.of();
+        Map<String, IdCall> calls = new java.util.LinkedHashMap<>();
+        calls.put("payments().retrieve", id -> client.payments().retrieve(id));
+        calls.put("payments().cancel", id -> client.payments().cancel(id, null));
+        calls.put("payments().process", id -> client.payments().process(id, p, null));
+        calls.put("payments().processSplit", id -> client.payments().processSplit(id, p, null));
+        calls.put("payments().listRefunds", id -> client.payments().listRefunds(id, p));
+        for (Map.Entry<String, CrudResource> crud : Map.<String, CrudResource>of(
+                "customers()", client.customers(), "refunds()", client.refunds(),
+                "transfers()", client.transfers(), "beneficiaries()", client.beneficiaries(),
+                "links()", client.links(), "accounts()", client.accounts(),
+                "webhookEndpoints()", client.webhookEndpoints(), "invoices()", client.invoices()).entrySet()) {
+            CrudResource r = crud.getValue();
+            calls.put(crud.getKey() + ".retrieve", id -> r.retrieve(id));
+            calls.put(crud.getKey() + ".update", id -> r.update(id, p, null));
+            calls.put(crud.getKey() + ".delete", id -> r.delete(id, null));
+        }
+        calls.put("customers().block", id -> client.customers().block(id, p, null));
+        calls.put("customers().unblock", id -> client.customers().unblock(id, null));
+        calls.put("customers().activate", id -> client.customers().activate(id, null));
+        calls.put("customers().deactivate", id -> client.customers().deactivate(id, null));
+        calls.put("customers().listTaxIds", id -> client.customers().listTaxIds(id));
+        calls.put("customers().createTaxId", id -> client.customers().createTaxId(id, p, null));
+        calls.put("customers().deleteTaxId (customer)", id -> client.customers().deleteTaxId(id, "txi_1", null));
+        calls.put("customers().deleteTaxId (tax id)", id -> client.customers().deleteTaxId("cus_1", id, null));
+        calls.put("accounts().regenerateToken", id -> client.accounts().regenerateToken(id, null));
+        calls.put("webhookEndpoints().rotateSecret", id -> client.webhookEndpoints().rotateSecret(id, null));
+        calls.put("invoices().send", id -> client.invoices().send(id, null));
+        calls.put("invoices().markPaid", id -> client.invoices().markPaid(id, p, null));
+        calls.put("invoices().cancel", id -> client.invoices().cancel(id, null));
+        calls.put("events().retrieve", id -> client.events().retrieve(id));
+        calls.put("events().resend", id -> client.events().resend(id, null));
+        calls.put("disputes().retrieve", id -> client.disputes().retrieve(id));
+        calls.put("disputes().submitEvidence", id -> client.disputes().submitEvidence(id, p, null));
+        calls.put("disputes().accept", id -> client.disputes().accept(id, null));
+        calls.put("disputes().close", id -> client.disputes().close(id, null));
+        calls.put("disputes().sendMessage", id -> client.disputes().sendMessage(id, p, null));
+        calls.put("tax().retrieveCode", id -> client.tax().retrieveCode(id));
+        calls.put("tax().retrieveRegistration", id -> client.tax().retrieveRegistration(id));
+        calls.put("tax().updateRegistration", id -> client.tax().updateRegistration(id, p, null));
+        calls.put("tax().deleteRegistration", id -> client.tax().deleteRegistration(id, null));
+        calls.put("shield().removeFromBlocklist", id -> client.shield().removeFromBlocklist(id, null));
+        return calls;
+    }
+
+    // An id is one segment of the path. With a "/" in it, or empty, "." or "..",
+    // the request went to another route of the API.
+    @Test
+    void anIdThatWouldLeaveItsPathSegmentIsRefusedBeforeAnythingIsSent() {
+        enqueueResponses();
+        Wajub client = newClient();
+
+        for (Map.Entry<String, IdCall> method : idPathMethods(client).entrySet()) {
+            for (String id : new String[] {"pay_1/../../customers", "cus_1/block", "", ".", "..", null}) {
+                IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                        () -> method.getValue().call(id), method.getKey() + " with " + id);
+                assertTrue(e.getMessage().startsWith("wajub: invalid id"), e.getMessage());
+            }
+        }
+        assertEquals(0, server.getRequestCount());
+    }
+
+    @Test
+    void anIdIsSentAsOnePathSegment() throws Exception {
+        enqueueResponses();
+        Wajub client = newClient();
+
+        client.payments().processSplit("pay_1#x?y=1", Map.of(), null);
+        client.payments().retrieve("pay_1%2Fcancel");
+        client.customers().deleteTaxId("cus_1", "txi 1\\x", null);
+
+        assertEquals("/payments/pay_1%23x%3Fy=1/splits", server.takeRequest().getPath());
+        assertEquals("/payments/pay_1%252Fcancel", server.takeRequest().getPath());
+        assertEquals("/customers/cus_1/tax_ids/txi%201%5Cx", server.takeRequest().getPath());
+    }
+
     private static String signWebhook(String secret, String payload, long timestamp) {
         return "v1=" + Crypto.hmacSha256(secret, timestamp + "." + payload);
     }

@@ -61,6 +61,13 @@ this release, and are listed here for an upgrade from 1.1.1.
   UTF-8**, as on Windows: a delivery with an accented character failed its
   signature check. The body is now read as UTF-8, as Wajub signs it.
 
+### Security
+- **An id that is not a Wajub id is refused before anything is sent.** A
+  Wajub id is never empty, `.` or `..` and never contains `/`; such an id,
+  passed to a method like `payments().retrieve(id)`, sent the request to
+  another path. It now throws `IllegalArgumentException`, as does a `null` id.
+  Other characters, such as `#` or `?`, are now sent as part of the id.
+
 ## [1.1.1] — 2026-08-09
 
 ### Changed

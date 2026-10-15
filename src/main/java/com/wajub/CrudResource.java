@@ -24,7 +24,7 @@ public class CrudResource {
     }
 
     public Map<String, Object> retrieve(String id) throws WajubException {
-        Map<String, Object> res = base.get("/" + path + "/" + id, null);
+        Map<String, Object> res = base.get("/" + path + "/" + HttpUtils.pathSegment(id), null);
         return HttpUtils.pickResource(res, singular);
     }
 
@@ -34,11 +34,11 @@ public class CrudResource {
 
     public Map<String, Object> update(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.put("/" + path + "/" + id, params, opts);
+        Map<String, Object> res = base.put("/" + path + "/" + HttpUtils.pathSegment(id), params, opts);
         return HttpUtils.pickResource(res, singular);
     }
 
     public void delete(String id, RequestOptions opts) throws WajubException {
-        base.delete("/" + path + "/" + id, opts);
+        base.delete("/" + path + "/" + HttpUtils.pathSegment(id), opts);
     }
 }

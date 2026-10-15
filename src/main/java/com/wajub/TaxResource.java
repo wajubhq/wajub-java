@@ -44,7 +44,7 @@ public class TaxResource {
     }
 
     public Map<String, Object> retrieveCode(String code) throws WajubException {
-        Map<String, Object> res = base.get("/tax/codes/" + code, null);
+        Map<String, Object> res = base.get("/tax/codes/" + HttpUtils.pathSegment(code), null);
         return HttpUtils.pickResource(res, "tax_code", "code");
     }
 
@@ -59,18 +59,18 @@ public class TaxResource {
     }
 
     public Map<String, Object> retrieveRegistration(String id) throws WajubException {
-        Map<String, Object> res = base.get("/tax/registrations/" + id, null);
+        Map<String, Object> res = base.get("/tax/registrations/" + HttpUtils.pathSegment(id), null);
         return HttpUtils.pickResource(res, "registration", "tax_registration");
     }
 
     public Map<String, Object> updateRegistration(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.put("/tax/registrations/" + id, params, opts);
+        Map<String, Object> res = base.put("/tax/registrations/" + HttpUtils.pathSegment(id), params, opts);
         return HttpUtils.pickResource(res, "registration", "tax_registration");
     }
 
     public void deleteRegistration(String id, RequestOptions opts) throws WajubException {
-        base.delete("/tax/registrations/" + id, opts);
+        base.delete("/tax/registrations/" + HttpUtils.pathSegment(id), opts);
     }
 
     public ListResult jurisdictions(Map<String, Object> params) throws WajubException {
