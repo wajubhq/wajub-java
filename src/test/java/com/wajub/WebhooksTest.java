@@ -172,21 +172,23 @@ class WebhooksTest {
     void constructEventKeepsASubSecondTolerance() throws Exception {
         String secret = "whsec_tolerance";
         String payload = "{\"event\":\"test\"}";
+        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
         Webhooks w = new Webhooks(secret);
 
         // 700 to 800 ms into the second: a timestamp of this second is 700 ms old or more.
-        long now = waitUntilMillisIntoTheSecond(700, 800);
-        String timestamp = String.valueOf(now / 1000);
-        String signature = "v1=" + Crypto.hmacSha256(secret, timestamp + "." + payload);
+        String late = String.valueOf(waitUntilMillisIntoTheSecond(700, 800) / 1000);
+        String lateSignature = "v1=" + Crypto.hmacSha256(secret, late + "." + payload);
         WebhookSignatureVerificationException e = assertThrows(
                 WebhookSignatureVerificationException.class,
-                () -> w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, timestamp,
-                        Duration.ofMillis(500)));
+                () -> w.constructEvent(body, lateSignature, late, Duration.ofMillis(500)));
         assertTrue(e.getMessage().contains("allowed 0.5s"), e.getMessage());
 
-        // The same delivery passes a 1.5 s tolerance.
-        assertEquals("test", w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, timestamp,
-                Duration.ofMillis(1500)).get("event"));
+        // A fresh delivery still passes it. The first call above warmed the JVM up,
+        // which can take more than a second; from the start of a second this one has
+        // 400 ms to spare.
+        String fresh = String.valueOf(waitUntilMillisIntoTheSecond(0, 100) / 1000);
+        String freshSignature = "v1=" + Crypto.hmacSha256(secret, fresh + "." + payload);
+        assertEquals("test", w.constructEvent(body, freshSignature, fresh, Duration.ofMillis(500)).get("event"));
     }
 
     private static long waitUntilMillisIntoTheSecond(int from, int to) throws InterruptedException {
