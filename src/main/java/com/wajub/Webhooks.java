@@ -83,7 +83,9 @@ public class Webhooks {
                 : tolerance;
         // The timestamp is in whole seconds, so is the window: a part of a second
         // counts as a whole one, and a tolerance under a second is never 0 s.
-        long allowedSeconds = allowed.getSeconds() + (allowed.getNano() > 0 ? 1 : 0);
+        long allowedSeconds = allowed.getNano() > 0 && allowed.getSeconds() < Long.MAX_VALUE
+                ? allowed.getSeconds() + 1
+                : allowed.getSeconds();
         long driftSeconds = driftSecondsFromNow(ts);
         if (driftSeconds > allowedSeconds) {
             throw new WebhookSignatureVerificationException(String.format(

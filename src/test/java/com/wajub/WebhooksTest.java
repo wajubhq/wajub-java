@@ -203,6 +203,24 @@ class WebhooksTest {
         assertRefused(w, now - 301, null, "Timestamp outside tolerance zone (301s drift, allowed 300s).");
     }
 
+    // Rounding the largest durations up to the next second overflowed: the window
+    // became negative and every delivery was refused.
+    @Test
+    void constructEventAcceptsTheLargestTolerances() {
+        long now = 1_760_000_000L;
+        Webhooks w = new Webhooks("whsec_tolerance",
+                Clock.fixed(Instant.ofEpochSecond(now, 750_000_000L), ZoneOffset.UTC));
+
+        for (Duration huge : new Duration[] {
+                java.time.temporal.ChronoUnit.FOREVER.getDuration(),
+                Duration.ofSeconds(Long.MAX_VALUE, 999_999_999),
+                Duration.ofSeconds(Long.MAX_VALUE)}) {
+            assertAccepted(w, now, huge);
+            assertAccepted(w, now - 10L * 365 * 24 * 3600, huge);
+            assertAccepted(w, now + 3600, huge);
+        }
+    }
+
     private static void assertAccepted(Webhooks w, long timestamp, Duration tolerance) {
         String payload = "{\"event\":\"test\"}";
         String ts = String.valueOf(timestamp);
