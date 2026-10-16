@@ -48,6 +48,10 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException(
                     "Webhook secret is required for constructEvent");
         }
+        if (payload == null) {
+            throw new WebhookSignatureVerificationException(
+                    "Webhook payload is required for constructEvent.");
+        }
         if (signature == null || signature.isBlank() || timestamp == null || timestamp.isBlank()) {
             throw new WebhookSignatureVerificationException(
                     "Missing X-Wajub-Signature or X-Wajub-Timestamp header.");

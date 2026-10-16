@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 final class HttpUtils {
@@ -184,14 +185,13 @@ final class HttpUtils {
         for (Map.Entry<?, ?> entry : errorMap.entrySet()) {
             Object value = entry.getValue();
             List<String> messages = new ArrayList<>();
+            // A field given [] or null has no message, and keeps its place as in getErrors().
             if (value instanceof List<?> list) {
-                list.forEach(message -> messages.add(String.valueOf(message)));
-            } else {
+                list.stream().filter(Objects::nonNull).forEach(message -> messages.add(String.valueOf(message)));
+            } else if (value != null) {
                 messages.add(String.valueOf(value));
             }
-            if (!messages.isEmpty()) {
-                fieldErrors.put(String.valueOf(entry.getKey()), messages);
-            }
+            fieldErrors.put(String.valueOf(entry.getKey()), messages);
         }
         return fieldErrors;
     }

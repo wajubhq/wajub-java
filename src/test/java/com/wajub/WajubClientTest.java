@@ -209,6 +209,62 @@ class WajubClientTest {
         assertEquals(Map.of(), new com.wajub.exception.ApiConnectionException("offline").getFieldErrors());
     }
 
+    // JSON nulls in an error body made the exception itself fail with a
+    // NullPointerException, and a field given [] was missing from getFieldErrors().
+    @Test
+    void anErrorBodyWithNullsAndEmptyListsKeepsEveryField() {
+        Map<String, Object> errors = new java.util.LinkedHashMap<>();
+        errors.put("amount", List.of());
+        errors.put("currency", null);
+        errors.put("email", java.util.Arrays.asList("The email is invalid.", null));
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("message", "Validation failed");
+        body.put("errors", errors);
+        body.put("data", null);
+
+        com.wajub.exception.InvalidRequestException err =
+                (com.wajub.exception.InvalidRequestException) HttpUtils.errorFromResponse(422, body, 0);
+
+        assertEquals("Validation failed", err.getMessage());
+        assertTrue(err.getRaw().containsKey("data"));
+        assertNull(err.getRaw().get("data"));
+        // getErrors() as before: every field, "[]" and "null" as given.
+        assertEquals(Map.of("amount", "[]", "currency", "null", "email", "The email is invalid."), err.getErrors());
+        // getFieldErrors(): the same fields, with only the messages.
+        assertEquals(List.of("amount", "currency", "email"), List.copyOf(err.getFieldErrors().keySet()));
+        assertEquals(List.of(), err.getFieldErrors().get("amount"));
+        assertEquals(List.of(), err.getFieldErrors().get("currency"));
+        assertEquals(List.of("The email is invalid."), err.getFieldErrors().get("email"));
+    }
+
+    @Test
+    void anExceptionAcceptsNullMapsAndNullValues() {
+        com.wajub.exception.WajubException empty =
+                new com.wajub.exception.WajubException("m", "c", 500, null, null, null);
+        assertEquals(Map.of(), empty.getErrors());
+        assertEquals(Map.of(), empty.getFieldErrors());
+        assertEquals(Map.of(), empty.getRaw());
+
+        Map<String, String> errors = new java.util.HashMap<>();
+        errors.put("amount", null);
+        Map<String, List<String>> fieldErrors = new java.util.HashMap<>();
+        fieldErrors.put("amount", null);
+        fieldErrors.put("email", java.util.Arrays.asList(null, "The email is invalid."));
+        Map<String, Object> raw = new java.util.HashMap<>();
+        raw.put("errors", null);
+
+        com.wajub.exception.WajubException e =
+                new com.wajub.exception.WajubException("m", "c", 422, errors, fieldErrors, raw);
+        assertTrue(e.getErrors().containsKey("amount"));
+        assertEquals(List.of(), e.getFieldErrors().get("amount"));
+        assertEquals(List.of("The email is invalid."), e.getFieldErrors().get("email"));
+        assertTrue(e.getRaw().containsKey("errors"));
+
+        com.wajub.exception.WajubException fromFirst =
+                new com.wajub.exception.WajubException("m", "c", 422, errors, raw);
+        assertEquals(List.of(), fromFirst.getFieldErrors().get("amount"));
+    }
+
     @Test
     void paymentsCreateUnwrapsUrls() throws Exception {
         enqueueResponses(req -> jsonResponse(200, Map.of(

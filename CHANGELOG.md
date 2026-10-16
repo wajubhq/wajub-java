@@ -40,6 +40,9 @@ this release, and are listed here for an upgrade from 1.1.1.
   takes the same parameters.
 
 ### Fixed
+- **An API error whose body holds a JSON `null`**, such as `"data": null`,
+  threw a `NullPointerException` instead of the `WajubException`. It now
+  throws the exception, with the body as sent in `getRaw()`.
 - The README said amounts are passed in the smallest currency unit (cents).
   Amounts are in the currency's main unit: send `12.50` for GHS 12.50, not
   `1250`. Currencies without decimals, such as XAF and XOF, are not affected.
@@ -48,6 +51,8 @@ this release, and are listed here for an upgrade from 1.1.1.
   `WebhookSignatureVerificationException` with `Missing X-Wajub-Signature or
   X-Wajub-Timestamp header.` It reported a bad signature format or a failed
   signature check, and a `null` timestamp could throw a `NullPointerException`.
+- `webhooks().constructEvent()` with a `null` body threw a
+  `NullPointerException`. It now throws `WebhookSignatureVerificationException`.
 - **`webhooks().constructEvent()` with a negative tolerance** threw
   `WebhookSignatureVerificationException` for every delivery, even a fresh
   one. A negative tolerance now keeps the default 300 seconds, as `null` and

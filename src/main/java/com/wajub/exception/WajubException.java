@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /** Base exception for API failures. */
 public class WajubException extends RuntimeException {
@@ -30,20 +31,23 @@ public class WajubException extends RuntimeException {
         super(message);
         this.code = code;
         this.httpStatus = httpStatus;
-        this.errors = errors != null ? Map.copyOf(errors) : Map.of();
+        // JSON nulls are kept as they are: Map.copyOf would refuse them.
+        this.errors = errors != null ? Collections.unmodifiableMap(new LinkedHashMap<>(errors)) : Map.of();
         this.fieldErrors = copyFieldErrors(fieldErrors != null ? fieldErrors : asLists(this.errors));
-        this.raw = raw != null ? Map.copyOf(raw) : Map.of();
+        this.raw = raw != null ? Collections.unmodifiableMap(new LinkedHashMap<>(raw)) : Map.of();
     }
 
     private static Map<String, List<String>> asLists(Map<String, String> errors) {
         Map<String, List<String>> lists = new LinkedHashMap<>();
-        errors.forEach((field, message) -> lists.put(field, List.of(message)));
+        errors.forEach((field, message) -> lists.put(field, Collections.singletonList(message)));
         return lists;
     }
 
+    /** Every field, with its messages; a null list or message is no message. */
     private static Map<String, List<String>> copyFieldErrors(Map<String, List<String>> fieldErrors) {
         Map<String, List<String>> copy = new LinkedHashMap<>();
-        fieldErrors.forEach((field, messages) -> copy.put(field, List.copyOf(messages)));
+        fieldErrors.forEach((field, messages) -> copy.put(field, messages == null ? List.of()
+                : messages.stream().filter(Objects::nonNull).toList()));
         return Collections.unmodifiableMap(copy);
     }
 
@@ -57,7 +61,7 @@ public class WajubException extends RuntimeException {
 
     /** The first validation message of each field. {@link #getFieldErrors()} has them all. */
     public Map<String, String> getErrors() {
-        return Collections.unmodifiableMap(errors);
+        return errors;
     }
 
     /** Every validation message of each field, in the order the API gave them. */
@@ -66,6 +70,6 @@ public class WajubException extends RuntimeException {
     }
 
     public Map<String, Object> getRaw() {
-        return Collections.unmodifiableMap(raw);
+        return raw;
     }
 }

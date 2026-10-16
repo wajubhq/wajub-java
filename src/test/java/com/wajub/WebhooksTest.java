@@ -157,6 +157,15 @@ class WebhooksTest {
     }
 
     @Test
+    void constructEventRefusesANullPayloadWithASignatureError() {
+        Webhooks w = new Webhooks("whsec_test");
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        WebhookSignatureVerificationException e = assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(null, "v1=deadbeef", timestamp, null));
+        assertEquals("Webhook payload is required for constructEvent.", e.getMessage());
+    }
+
+    @Test
     void constructEventNamesAMissingSignatureHeader() {
         Webhooks w = new Webhooks("whsec_test");
         String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
