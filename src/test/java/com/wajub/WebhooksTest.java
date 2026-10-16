@@ -156,6 +156,26 @@ class WebhooksTest {
         assertEquals("Éloïse Ndé", ((Map<?, ?>) ((Map<?, ?>) event.get("data")).get("customer")).get("name"));
     }
 
+    // Hex digits are the same in either case: an upper-case signature, as some
+    // tools write it, was refused.
+    @Test
+    void constructEventAcceptsASignatureInUpperCaseHex() {
+        String secret = "whsec_case";
+        String payload = "{\"event\":\"payment.succeeded\"}";
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        String hex = Crypto.hmacSha256(secret, timestamp + "." + payload);
+        assertTrue(hex.matches(".*[a-f].*"), hex);
+        Webhooks w = new Webhooks(secret);
+
+        for (String signature : new String[] {"v1=" + hex.toUpperCase(java.util.Locale.ROOT), "v1=" + hex}) {
+            assertEquals("payment.succeeded",
+                    w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, timestamp, null).get("event"));
+        }
+        String other = "v1=" + Crypto.hmacSha256("whsec_other", timestamp + "." + payload).toUpperCase(java.util.Locale.ROOT);
+        assertEquals("Webhook signature verification failed.", assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), other, timestamp, null)).getMessage());
+    }
+
     @Test
     void constructEventRefusesANullPayloadWithASignatureError() {
         Webhooks w = new Webhooks("whsec_test");

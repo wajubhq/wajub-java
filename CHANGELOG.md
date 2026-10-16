@@ -59,6 +59,9 @@ are listed here for an upgrade from 1.1.1.
   signature check.
 - `webhooks().constructEvent()` with a `null` body threw a
   `NullPointerException`. It now throws `WebhookSignatureVerificationException`.
+- `webhooks().constructEvent()` refused a signature written in upper-case hex,
+  as Guava's `BaseEncoding.base16()` writes it for a test delivery you sign
+  yourself. The hex digits are now compared in either case.
 - **`webhooks().constructEvent()` with a negative tolerance** threw
   `WebhookSignatureVerificationException` for every delivery, even a fresh
   one. A negative tolerance now keeps the default 300 seconds, as `null` and

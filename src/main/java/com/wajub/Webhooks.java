@@ -6,6 +6,7 @@ import com.wajub.exception.WebhookSignatureVerificationException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 
 /** Verifies inbound webhook signatures. */
@@ -64,7 +65,8 @@ public class Webhooks {
         // Over the body's bytes as received: decoded as text, bytes that are not valid
         // UTF-8 would all read the same, and different bodies would share a signature.
         String expected = Crypto.hmacSha256(secret, (timestamp + ".").getBytes(StandardCharsets.UTF_8), payload);
-        String received = signature.substring(3);
+        // The expected digest is lower-case hex; hex digits mean the same in either case.
+        String received = signature.substring(3).toLowerCase(Locale.ROOT);
 
         if (!Crypto.timingSafeEqual(expected, received)) {
             throw new WebhookSignatureVerificationException(
