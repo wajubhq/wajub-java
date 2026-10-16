@@ -9,8 +9,8 @@ The library uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.3.0] — 2026-10-15
 
-1.2.0 and 1.2.1 were not published to Maven Central: their changes ship in
-this release, and are listed here for an upgrade from 1.1.1.
+1.2.0 and 1.2.1 were never released: their changes ship in this release, and
+are listed here for an upgrade from 1.1.1.
 
 ### Added
 - **`Payment.getAmountDecimal()`, the amount with its decimals.** Amounts are
@@ -26,7 +26,9 @@ this release, and are listed here for an upgrade from 1.1.1.
 
 ### Changed
 - **A create sent again with the same idempotency key while the first is still
-  running** now returns the first request's result instead of a `409` error.
+  running** now waits for the first one and returns its result, instead of a
+  `409` error. If the first is still running after a few seconds, the `409` is
+  thrown as before.
 
 ### Deprecated
 - **`Payment.getAmount()`.** It returns a `long` and drops the decimals:
@@ -50,7 +52,7 @@ this release, and are listed here for an upgrade from 1.1.1.
   `X-Wajub-Timestamp` header** (`null` or empty) now throws
   `WebhookSignatureVerificationException` with `Missing X-Wajub-Signature or
   X-Wajub-Timestamp header.` It reported a bad signature format or a failed
-  signature check, and a `null` timestamp could throw a `NullPointerException`.
+  signature check.
 - `webhooks().constructEvent()` with a `null` body threw a
   `NullPointerException`. It now throws `WebhookSignatureVerificationException`.
 - **`webhooks().constructEvent()` with a negative tolerance** threw
