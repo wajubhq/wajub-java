@@ -35,11 +35,9 @@ this release, and are listed here for an upgrade from 1.1.1.
 - **`listen()`, `listen().config()` and `listen().auth()`.** The API no
   longer offers them and answers `410 Gone`. To receive webhooks on your
   machine, forward them with the Wajub CLI: `wajub listen`.
-
-### Removed
-- **`payments().initialize()`.** Code that calls it no longer compiles. Call
-  `payments().create()` instead: it takes the same parameters, returns the
-  same `Payment` and sends the same request.
+- **`payments().initialize()`.** It does what `payments().create()` does, and
+  code that calls it compiles and behaves as before. Call `create()`, which
+  takes the same parameters.
 
 ### Fixed
 - The README said amounts are passed in the smallest currency unit (cents).

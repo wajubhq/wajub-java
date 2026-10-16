@@ -301,6 +301,30 @@ class WajubClientTest {
         assertEquals(java.time.Duration.ofSeconds(4), Retry.idempotencyConflictDelay(2));
     }
 
+    // 1.1.1 had payments().initialize(): code that calls it must still compile
+    // and send the same request as create().
+    @Test
+    void paymentsInitializeIsKeptAsADeprecatedAliasOfCreate() throws Exception {
+        java.lang.reflect.Method initialize =
+                PaymentsResource.class.getMethod("initialize", Map.class, RequestOptions.class);
+        assertEquals(Payment.class, initialize.getReturnType());
+        assertEquals("1.3.0", initialize.getAnnotation(Deprecated.class).since());
+
+        enqueueResponses(req -> jsonResponse(200, Map.of(
+                "transaction", Map.of("id", "pay_456"),
+                "authorization_url", "https://checkout.test/pay/pay_456")));
+        Wajub client = newClient();
+        Payment payment = (Payment) initialize.invoke(client.payments(),
+                Map.of("amount", 1000, "currency", "XAF"), new RequestOptions().setIdempotencyKey("order-1"));
+
+        assertEquals("pay_456", payment.getId());
+        RecordedRequest request = server.takeRequest();
+        assertEquals("POST", request.getMethod());
+        assertEquals("/payments", request.getPath());
+        assertEquals("order-1", request.getHeader("Idempotency-Key"));
+        assertEquals(Map.of("amount", 1000, "currency", "XAF"), MAPPER.readValue(request.getBody().readUtf8(), Map.class));
+    }
+
     // The API answers 410 Gone on /listen/config and /listen/auth: integrators
     // forward webhooks with the Wajub CLI's `wajub listen`.
     @Test

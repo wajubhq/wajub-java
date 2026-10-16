@@ -17,6 +17,16 @@ public class PaymentsResource {
         return Payment.parsePayment(res);
     }
 
+    /**
+     * Same as {@link #create(Map, RequestOptions)}.
+     *
+     * @deprecated call {@link #create(Map, RequestOptions)}, which takes the same parameters.
+     */
+    @Deprecated(since = "1.3.0")
+    public Payment initialize(Map<String, Object> params, RequestOptions opts) throws WajubException {
+        return create(params, opts);
+    }
+
     public Payment retrieve(String id) throws WajubException {
         Map<String, Object> res = base.get("/payments/" + HttpUtils.pathSegment(id), null);
         return Payment.parsePayment(Map.of("transaction", HttpUtils.pickResource(res, "transaction")));
