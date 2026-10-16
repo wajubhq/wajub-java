@@ -43,16 +43,18 @@ final class HttpUtils {
     }
 
     /**
-     * The id as one segment of a request path, percent-encoded. Wajub ids are never empty,
-     * "." or "..", and never contain "/": such an id would reach another path, so it is
-     * refused before anything is sent.
+     * The id as one segment of a request path, without the spaces around it, percent-encoded.
+     * Wajub ids are never empty, "." or "..", and never contain "/": such an id would reach
+     * another path, so it is refused before anything is sent.
      */
     static String pathSegment(String id) {
-        if (id == null || id.isEmpty() || id.equals(".") || id.equals("..") || id.indexOf('/') >= 0) {
+        String segment = id == null ? null : id.trim();
+        if (segment == null || segment.isEmpty() || segment.equals(".") || segment.equals("..")
+                || segment.indexOf('/') >= 0) {
             throw new IllegalArgumentException("wajub: invalid id " + (id == null ? "null" : "\"" + id + "\"")
                     + ": a Wajub id is never empty, \".\" or \"..\", and never contains \"/\"");
         }
-        return SEGMENT_BASE.newBuilder().addPathSegment(id).build().encodedPath().substring(1);
+        return SEGMENT_BASE.newBuilder().addPathSegment(segment).build().encodedPath().substring(1);
     }
 
     static String defaultApiUrl() {

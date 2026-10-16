@@ -29,6 +29,11 @@ are listed here for an upgrade from 1.1.1.
   running** now waits for the first one and returns its result, instead of a
   `409` error. If the first is still running after a few seconds, the `409` is
   thrown as before.
+- **Ids passed to a method.** A `null` id now throws
+  `IllegalArgumentException`; 1.1.1 sent a request for the id `null`. Spaces
+  around an id are dropped by every method, where 1.1.1 dropped only some, and
+  an id with a character such as `#` or `?` is sent whole instead of being cut
+  there.
 
 ### Deprecated
 - **`Payment.getAmount()`.** It returns a `long` and drops the decimals:
@@ -76,8 +81,7 @@ are listed here for an upgrade from 1.1.1.
 - **An id that is not a Wajub id is refused before anything is sent.** A
   Wajub id is never empty, `.` or `..` and never contains `/`; such an id,
   passed to a method like `payments().retrieve(id)`, sent the request to
-  another path. It now throws `IllegalArgumentException`, as does a `null` id.
-  Other characters, such as `#` or `?`, are now sent as part of the id.
+  another path. It now throws `IllegalArgumentException`.
 
 ## [1.1.1] — 2026-08-09
 

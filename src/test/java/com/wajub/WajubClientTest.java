@@ -631,13 +631,30 @@ class WajubClientTest {
         Wajub client = newClient();
 
         for (Map.Entry<String, IdCall> method : idPathMethods(client).entrySet()) {
-            for (String id : new String[] {"pay_1/../../customers", "cus_1/block", "", ".", "..", null}) {
+            for (String id : new String[] {"pay_1/../../customers", "cus_1/block", "", ".", "..", null,
+                    " ", " .. ", "\t./\n"}) {
                 IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                         () -> method.getValue().call(id), method.getKey() + " with " + id);
                 assertTrue(e.getMessage().startsWith("wajub: invalid id"), e.getMessage());
             }
         }
         assertEquals(0, server.getRequestCount());
+    }
+
+    // 1.1.1 dropped the spaces after an id that ended the path, as in
+    // retrieve("pay_1 "). Every method now drops the spaces around an id.
+    @Test
+    void theSpacesAroundAnIdAreDropped() throws Exception {
+        enqueueResponses();
+        Wajub client = newClient();
+
+        client.payments().retrieve("pay_1 ");
+        client.payments().processSplit(" pay_1\n", Map.of(), null);
+        client.customers().deleteTaxId("\tcus_1", "txi_1 ", null);
+
+        assertEquals("/payments/pay_1", server.takeRequest().getPath());
+        assertEquals("/payments/pay_1/splits", server.takeRequest().getPath());
+        assertEquals("/customers/cus_1/tax_ids/txi_1", server.takeRequest().getPath());
     }
 
     @Test
