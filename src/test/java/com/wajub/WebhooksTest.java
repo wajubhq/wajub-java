@@ -7,7 +7,10 @@ import okhttp3.Request;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -166,40 +169,47 @@ class WebhooksTest {
         }
     }
 
-    // A tolerance under a second was cut to 0 s: a delivery was then accepted
-    // up to 999 ms late, as long as the clock had not turned to the next second.
+    // Timestamps are whole seconds. A tolerance under a second was cut to 0 s, so
+    // a delivery was refused once the clock turned to the next second; counted to
+    // the millisecond, it was refused once the timestamp's second was 500 ms old.
+    // Rounded up to whole seconds, 500 ms is one second.
     @Test
-    void constructEventKeepsASubSecondTolerance() throws Exception {
-        String secret = "whsec_tolerance";
-        String payload = "{\"event\":\"test\"}";
-        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
-        Webhooks w = new Webhooks(secret);
+    void constructEventRoundsATolerancePartOfASecondUpToWholeSeconds() {
+        long now = 1_760_000_000L;
+        Webhooks w = new Webhooks("whsec_tolerance",
+                Clock.fixed(Instant.ofEpochSecond(now, 750_000_000L), ZoneOffset.UTC));
+        Duration halfASecond = Duration.ofMillis(500);
 
-        // 700 to 800 ms into the second: a timestamp of this second is 700 ms old or more.
-        String late = String.valueOf(waitUntilMillisIntoTheSecond(700, 800) / 1000);
-        String lateSignature = "v1=" + Crypto.hmacSha256(secret, late + "." + payload);
-        WebhookSignatureVerificationException e = assertThrows(
-                WebhookSignatureVerificationException.class,
-                () -> w.constructEvent(body, lateSignature, late, Duration.ofMillis(500)));
-        assertTrue(e.getMessage().contains("allowed 0.5s"), e.getMessage());
+        assertAccepted(w, now, halfASecond);
+        assertAccepted(w, now - 1, halfASecond);
+        assertAccepted(w, now + 1, halfASecond);
+        assertRefused(w, now - 2, halfASecond, "Timestamp outside tolerance zone (2s drift, allowed 1s).");
+        assertRefused(w, now + 2, halfASecond, "Timestamp outside tolerance zone (2s drift, allowed 1s).");
 
-        // A fresh delivery still passes it. The first call above warmed the JVM up,
-        // which can take more than a second; from the start of a second this one has
-        // 400 ms to spare.
-        String fresh = String.valueOf(waitUntilMillisIntoTheSecond(0, 100) / 1000);
-        String freshSignature = "v1=" + Crypto.hmacSha256(secret, fresh + "." + payload);
-        assertEquals("test", w.constructEvent(body, freshSignature, fresh, Duration.ofMillis(500)).get("event"));
+        Duration oneAndAHalf = Duration.ofMillis(1500);
+        assertAccepted(w, now - 2, oneAndAHalf);
+        assertRefused(w, now - 3, oneAndAHalf, "Timestamp outside tolerance zone (3s drift, allowed 2s).");
+
+        assertAccepted(w, now - 300, null);
+        assertRefused(w, now - 301, null, "Timestamp outside tolerance zone (301s drift, allowed 300s).");
     }
 
-    private static long waitUntilMillisIntoTheSecond(int from, int to) throws InterruptedException {
-        while (true) {
-            long now = System.currentTimeMillis();
-            long into = now % 1000;
-            if (into >= from && into < to) {
-                return now;
-            }
-            Thread.sleep(into < from ? from - into : 1000 - into + from);
-        }
+    private static void assertAccepted(Webhooks w, long timestamp, Duration tolerance) {
+        String payload = "{\"event\":\"test\"}";
+        String ts = String.valueOf(timestamp);
+        String signature = "v1=" + Crypto.hmacSha256("whsec_tolerance", ts + "." + payload);
+        assertEquals("test", w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, ts, tolerance)
+                .get("event"), "timestamp " + timestamp + ", tolerance " + tolerance);
+    }
+
+    private static void assertRefused(Webhooks w, long timestamp, Duration tolerance, String message) {
+        String payload = "{\"event\":\"test\"}";
+        String ts = String.valueOf(timestamp);
+        String signature = "v1=" + Crypto.hmacSha256("whsec_tolerance", ts + "." + payload);
+        WebhookSignatureVerificationException e = assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(payload.getBytes(StandardCharsets.UTF_8), signature, ts, tolerance),
+                "timestamp " + timestamp + ", tolerance " + tolerance);
+        assertEquals(message, e.getMessage());
     }
 
     // The signature was checked over the body decoded as text: bytes that are not

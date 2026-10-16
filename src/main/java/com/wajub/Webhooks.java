@@ -3,8 +3,8 @@ package com.wajub;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wajub.exception.WebhookSignatureVerificationException;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 
@@ -15,9 +15,15 @@ public class Webhooks {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String secret;
+    private final Clock clock;
 
     public Webhooks(String secret) {
+        this(secret, Clock.systemUTC());
+    }
+
+    Webhooks(String secret, Clock clock) {
         this.secret = secret;
+        this.clock = clock;
     }
 
     /**
@@ -26,7 +32,8 @@ public class Webhooks {
      * @param payload   raw request body, exactly as received
      * @param signature value of X-Wajub-Signature header
      * @param timestamp value of X-Wajub-Timestamp header
-     * @param tolerance maximum allowed timestamp drift, to the millisecond; null, zero or
+     * @param tolerance maximum allowed timestamp drift, rounded up to whole seconds as the
+     *                  timestamp is in whole seconds (500 ms is one second); null, zero or
      *                  negative keeps the default 300 seconds, so replay protection cannot be
      *                  switched off
      */
@@ -70,12 +77,14 @@ public class Webhooks {
         Duration allowed = (tolerance == null || tolerance.isZero() || tolerance.isNegative())
                 ? DEFAULT_TOLERANCE
                 : tolerance;
-        // To the millisecond, so that a tolerance under a second is not cut to 0 s.
-        Duration drift = driftFromNow(ts);
-        if (drift.compareTo(allowed) > 0) {
+        // The timestamp is in whole seconds, so is the window: a part of a second
+        // counts as a whole one, and a tolerance under a second is never 0 s.
+        long allowedSeconds = allowed.getSeconds() + (allowed.getNano() > 0 ? 1 : 0);
+        long driftSeconds = driftSecondsFromNow(ts);
+        if (driftSeconds > allowedSeconds) {
             throw new WebhookSignatureVerificationException(String.format(
-                    "Timestamp outside tolerance zone (%ss drift, allowed %ss).",
-                    seconds(drift), seconds(allowed)));
+                    "Timestamp outside tolerance zone (%ds drift, allowed %ds).",
+                    driftSeconds, allowedSeconds));
         }
 
         try {
@@ -85,19 +94,11 @@ public class Webhooks {
         }
     }
 
-    private static Duration driftFromNow(long timestampSeconds) {
+    private long driftSecondsFromNow(long timestampSeconds) {
         try {
-            long millis = Math.subtractExact(System.currentTimeMillis(), Math.multiplyExact(timestampSeconds, 1000L));
-            return Duration.ofMillis(Math.abs(millis));
+            return Math.absExact(Math.subtractExact(clock.instant().getEpochSecond(), timestampSeconds));
         } catch (ArithmeticException e) {
-            return Duration.ofSeconds(Long.MAX_VALUE);
+            return Long.MAX_VALUE;
         }
-    }
-
-    private static String seconds(Duration duration) {
-        return BigDecimal.valueOf(duration.getSeconds())
-                .add(BigDecimal.valueOf(duration.getNano(), 9))
-                .stripTrailingZeros()
-                .toPlainString();
     }
 }

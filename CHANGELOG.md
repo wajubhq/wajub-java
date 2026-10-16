@@ -55,8 +55,9 @@ this release, and are listed here for an upgrade from 1.1.1.
   one. A negative tolerance now keeps the default 300 seconds, as `null` and
   zero do.
 - **`webhooks().constructEvent()` with a tolerance under one second**, such as
-  `Duration.ofMillis(500)`, accepted a delivery up to a second old. The
-  tolerance now counts to the millisecond.
+  `Duration.ofMillis(500)`, counted as 0 seconds: a delivery was refused as
+  soon as the clock turned to the next second. Timestamps are whole seconds,
+  so the tolerance is now rounded up to whole seconds: 500 ms counts as one.
 - **`webhooks().constructEvent()` on a server whose default charset is not
   UTF-8**, as with Java 17 on Windows: a delivery with an accented character
   failed its signature check. The signature is now checked over the body's
