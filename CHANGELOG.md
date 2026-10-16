@@ -77,10 +77,12 @@ are listed here for an upgrade from 1.1.1.
   as received.** It checked the body decoded as text, where bytes that are not
   valid UTF-8 all read alike, so a body changed in those bytes could pass the
   signature check.
-- **An id that is not a Wajub id is refused before anything is sent.** A
-  Wajub id is never empty, `.` or `..` and never contains `/`; such an id,
-  passed to a method like `payments().retrieve(id)`, sent the request to
-  another path. It now throws `IllegalArgumentException`.
+- **An id that is not a Wajub id is refused before anything is sent.** If an
+  id you pass can come from a URL or a form, a call could act on another
+  resource of your account: `customers().delete("cus_1/tax_ids/txi_1", null)`
+  deleted a tax ID. An id that is empty, `.` or `..`, or contains `/`, now
+  throws `IllegalArgumentException`. Wajub ids never take these forms, so
+  valid calls are unchanged.
 
 ## [1.1.1] — 2026-08-09
 

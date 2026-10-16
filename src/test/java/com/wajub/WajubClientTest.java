@@ -631,7 +631,7 @@ class WajubClientTest {
         Wajub client = newClient();
 
         for (Map.Entry<String, IdCall> method : idPathMethods(client).entrySet()) {
-            for (String id : new String[] {"pay_1/../../customers", "cus_1/block", "", ".", "..", null,
+            for (String id : new String[] {"pay_1/../../customers", "cus_1/tax_ids/txi_1", "", ".", "..", null,
                     " ", " .. ", "\t./\n"}) {
                 IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                         () -> method.getValue().call(id), method.getKey() + " with " + id);
