@@ -23,7 +23,7 @@ public class Webhooks {
     /**
      * Verifies X-Wajub-Signature and parses the event payload.
      *
-     * @param payload   raw request body, as UTF-8 bytes
+     * @param payload   raw request body, exactly as received
      * @param signature value of X-Wajub-Signature header
      * @param timestamp value of X-Wajub-Timestamp header
      * @param tolerance maximum allowed timestamp drift, to the millisecond; null, zero or
@@ -50,9 +50,9 @@ public class Webhooks {
                     "Invalid webhook signature format. Expected v1={hash}.");
         }
 
-        // Wajub signs the UTF-8 body: the JVM's default charset may be another one.
-        String body = new String(payload, StandardCharsets.UTF_8);
-        String expected = Crypto.hmacSha256(secret, timestamp + "." + body);
+        // Over the body's bytes as received: decoded as text, bytes that are not valid
+        // UTF-8 would all read the same, and different bodies would share a signature.
+        String expected = Crypto.hmacSha256(secret, (timestamp + ".").getBytes(StandardCharsets.UTF_8), payload);
         String received = signature.substring(3);
 
         if (!Crypto.timingSafeEqual(expected, received)) {

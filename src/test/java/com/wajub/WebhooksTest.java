@@ -201,4 +201,60 @@ class WebhooksTest {
             Thread.sleep(into < from ? from - into : 1000 - into + from);
         }
     }
+
+    // The signature was checked over the body decoded as text: bytes that are not
+    // valid UTF-8 all decode to U+FFFD, so bodies with different bytes shared a
+    // signature.
+    @Test
+    void constructEventChecksTheSignatureOverTheBodysBytes() throws Exception {
+        String secret = "whsec_bytes";
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        Webhooks w = new Webhooks(secret);
+
+        // U+FFFD sent as such (EF BF BD), signed by Wajub, then the same body with
+        // FF in its place: both decode to the same text.
+        byte[] sent = "{\"event\":\"test\",\"note\":\"\uFFFD\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] forged = replace(sent, new byte[] {(byte) 0xEF, (byte) 0xBF, (byte) 0xBD}, new byte[] {(byte) 0xFF});
+        assertEquals(new String(sent, StandardCharsets.UTF_8), new String(forged, StandardCharsets.UTF_8));
+
+        String signature = signBytes(secret, timestamp, sent);
+        assertEquals("test", w.constructEvent(sent, signature, timestamp, null).get("event"));
+        WebhookSignatureVerificationException e = assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(forged, signature, timestamp, null));
+        assertEquals("Webhook signature verification failed.", e.getMessage());
+
+        // Two invalid sequences, FF and FE: the body signed with FF passes the
+        // signature check (its JSON is then refused), the one with FE does not.
+        byte[] withFf = "{\"event\":\"test\",\"note\":\"#\"}".getBytes(StandardCharsets.UTF_8);
+        withFf = replace(withFf, new byte[] {'#'}, new byte[] {(byte) 0xFF});
+        byte[] withFe = replace(withFf, new byte[] {(byte) 0xFF}, new byte[] {(byte) 0xFE});
+        String ffSignature = signBytes(secret, timestamp, withFf);
+        byte[] ff = withFf;
+        assertEquals("Invalid webhook payload JSON.", assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(ff, ffSignature, timestamp, null)).getMessage());
+        assertEquals("Webhook signature verification failed.", assertThrows(WebhookSignatureVerificationException.class,
+                () -> w.constructEvent(withFe, ffSignature, timestamp, null)).getMessage());
+    }
+
+    /** Signs as Wajub does: HMAC-SHA256 of the timestamp, ".", and the body's bytes. */
+    private static String signBytes(String secret, String timestamp, byte[] body) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        mac.update((timestamp + ".").getBytes(StandardCharsets.UTF_8));
+        return "v1=" + java.util.HexFormat.of().formatHex(mac.doFinal(body));
+    }
+
+    private static byte[] replace(byte[] in, byte[] from, byte[] to) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (int i = 0; i < in.length; ) {
+            if (i + from.length <= in.length
+                    && java.util.Arrays.equals(in, i, i + from.length, from, 0, from.length)) {
+                out.writeBytes(to);
+                i += from.length;
+            } else {
+                out.write(in[i++]);
+            }
+        }
+        return out.toByteArray();
+    }
 }

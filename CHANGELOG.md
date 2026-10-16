@@ -58,10 +58,15 @@ this release, and are listed here for an upgrade from 1.1.1.
   `Duration.ofMillis(500)`, accepted a delivery up to a second old. The
   tolerance now counts to the millisecond.
 - **`webhooks().constructEvent()` on a server whose default charset is not
-  UTF-8**, as on Windows: a delivery with an accented character failed its
-  signature check. The body is now read as UTF-8, as Wajub signs it.
+  UTF-8**, as with Java 17 on Windows: a delivery with an accented character
+  failed its signature check. The signature is now checked over the body's
+  bytes, whatever the default charset.
 
 ### Security
+- **`webhooks().constructEvent()` checks the signature over the body's bytes
+  as received.** It checked the body decoded as text, where bytes that are not
+  valid UTF-8 all read alike, so a body changed in those bytes could pass the
+  signature check.
 - **An id that is not a Wajub id is refused before anything is sent.** A
   Wajub id is never empty, `.` or `..` and never contains `/`; such an id,
   passed to a method like `payments().retrieve(id)`, sent the request to
