@@ -46,7 +46,7 @@ final class Retry {
         return errors instanceof java.util.Map<?, ?> map && map.containsKey("idempotency_key");
     }
 
-    /** The pause before asking again about a key still being processed: 2, 4, then 8 seconds. */
+    /** The pause before asking again about a key still being processed: 2, then 4 seconds. */
     static Duration idempotencyConflictDelay(int attempt) {
         return Duration.ofSeconds(1L << Math.max(1, attempt));
     }

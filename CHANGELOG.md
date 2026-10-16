@@ -26,9 +26,8 @@ are listed here for an upgrade from 1.1.1.
 
 ### Changed
 - **A create sent again with the same idempotency key while the first is still
-  running** now waits for the first one and returns its result, instead of a
-  `409` error. If the first is still running after a few seconds, the `409` is
-  thrown as before.
+  running** returns the first request's result instead of a `409` error. If
+  the first has not finished, the `409` is still thrown.
 - **Ids passed to a method.** A `null` id now throws
   `IllegalArgumentException`; 1.1.1 sent a request for the id `null`. Spaces
   around an id are dropped by every method, where 1.1.1 dropped only some, and
