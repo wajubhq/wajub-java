@@ -3,7 +3,10 @@ package com.wajub;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wajub.exception.WebhookSignatureVerificationException;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 
 /** Verifies inbound webhook signatures. */
@@ -13,18 +16,27 @@ public class Webhooks {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String secret;
+    private final Clock clock;
 
     public Webhooks(String secret) {
+        this(secret, Clock.systemUTC());
+    }
+
+    Webhooks(String secret, Clock clock) {
         this.secret = secret;
+        this.clock = clock;
     }
 
     /**
      * Verifies X-Wajub-Signature and parses the event payload.
      *
-     * @param payload   raw request body
+     * @param payload   raw request body, exactly as received
      * @param signature value of X-Wajub-Signature header
      * @param timestamp value of X-Wajub-Timestamp header
-     * @param tolerance maximum allowed timestamp drift; null or zero uses default (300s)
+     * @param tolerance maximum allowed timestamp drift, rounded up to whole seconds as the
+     *                  timestamp is in whole seconds (500 ms is one second); null, zero or
+     *                  negative keeps the default 300 seconds, so replay protection cannot be
+     *                  switched off
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> constructEvent(
@@ -37,18 +49,24 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException(
                     "Webhook secret is required for constructEvent");
         }
-        if (timestamp == null || timestamp.isBlank()) {
+        if (payload == null) {
+            throw new WebhookSignatureVerificationException(
+                    "Webhook payload is required for constructEvent.");
+        }
+        if (signature == null || signature.isBlank() || timestamp == null || timestamp.isBlank()) {
             throw new WebhookSignatureVerificationException(
                     "Missing X-Wajub-Signature or X-Wajub-Timestamp header.");
         }
-        if (signature == null || !signature.startsWith("v1=")) {
+        if (!signature.startsWith("v1=")) {
             throw new WebhookSignatureVerificationException(
                     "Invalid webhook signature format. Expected v1={hash}.");
         }
 
-        String body = new String(payload);
-        String expected = Crypto.hmacSha256(secret, timestamp + "." + body);
-        String received = signature.substring(3);
+        // Over the body's bytes as received: decoded as text, bytes that are not valid
+        // UTF-8 would all read the same, and different bodies would share a signature.
+        String expected = Crypto.hmacSha256(secret, (timestamp + ".").getBytes(StandardCharsets.UTF_8), payload);
+        // The expected digest is lower-case hex; hex digits mean the same in either case.
+        String received = signature.substring(3).toLowerCase(Locale.ROOT);
 
         if (!Crypto.timingSafeEqual(expected, received)) {
             throw new WebhookSignatureVerificationException(
@@ -62,18 +80,33 @@ public class Webhooks {
             throw new WebhookSignatureVerificationException("Invalid webhook timestamp.");
         }
 
-        Duration allowed = (tolerance == null || tolerance.isZero()) ? DEFAULT_TOLERANCE : tolerance;
-        long driftSeconds = Math.abs(System.currentTimeMillis() / 1000 - ts);
-        if (driftSeconds > allowed.getSeconds()) {
+        Duration allowed = (tolerance == null || tolerance.isZero() || tolerance.isNegative())
+                ? DEFAULT_TOLERANCE
+                : tolerance;
+        // The timestamp is in whole seconds, so is the window: a part of a second
+        // counts as a whole one, and a tolerance under a second is never 0 s.
+        long allowedSeconds = allowed.getNano() > 0 && allowed.getSeconds() < Long.MAX_VALUE
+                ? allowed.getSeconds() + 1
+                : allowed.getSeconds();
+        long driftSeconds = driftSecondsFromNow(ts);
+        if (driftSeconds > allowedSeconds) {
             throw new WebhookSignatureVerificationException(String.format(
                     "Timestamp outside tolerance zone (%ds drift, allowed %ds).",
-                    driftSeconds, allowed.getSeconds()));
+                    driftSeconds, allowedSeconds));
         }
 
         try {
             return MAPPER.readValue(payload, Map.class);
         } catch (Exception e) {
             throw new WebhookSignatureVerificationException("Invalid webhook payload JSON.");
+        }
+    }
+
+    private long driftSecondsFromNow(long timestampSeconds) {
+        try {
+            return Math.absExact(Math.subtractExact(clock.instant().getEpochSecond(), timestampSeconds));
+        } catch (ArithmeticException e) {
+            return Long.MAX_VALUE;
         }
     }
 }

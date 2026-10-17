@@ -11,7 +11,7 @@ public class AccountsResource extends CrudResource {
     }
 
     public Map<String, Object> regenerateToken(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/accounts/" + id + "/token", null, opts);
+        Map<String, Object> res = base.post("/accounts/" + HttpUtils.pathSegment(id) + "/token", null, opts);
         return HttpUtils.pickResource(res, "account");
     }
 }

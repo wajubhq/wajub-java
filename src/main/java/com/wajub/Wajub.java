@@ -143,6 +143,11 @@ public class Wajub {
         return shield;
     }
 
+    /**
+     * @deprecated the API no longer offers its methods and answers {@code 410 Gone}. To receive
+     *     webhooks on your machine, forward them with the Wajub CLI: {@code wajub listen}.
+     */
+    @Deprecated(since = "1.3.0")
     public ListenResource listen() {
         return listen;
     }

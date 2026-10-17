@@ -11,18 +11,18 @@ public class InvoicesResource extends CrudResource {
     }
 
     public Map<String, Object> send(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/invoices/" + id + "/send", null, opts);
+        Map<String, Object> res = base.post("/invoices/" + HttpUtils.pathSegment(id) + "/send", null, opts);
         return HttpUtils.pickResource(res, "invoice");
     }
 
     public Map<String, Object> markPaid(String id, Map<String, Object> params, RequestOptions opts)
             throws WajubException {
-        Map<String, Object> res = base.post("/invoices/" + id + "/mark-paid", params, opts);
+        Map<String, Object> res = base.post("/invoices/" + HttpUtils.pathSegment(id) + "/mark-paid", params, opts);
         return HttpUtils.pickResource(res, "invoice");
     }
 
     public Map<String, Object> cancel(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/invoices/" + id + "/cancel", null, opts);
+        Map<String, Object> res = base.post("/invoices/" + HttpUtils.pathSegment(id) + "/cancel", null, opts);
         return HttpUtils.pickResource(res, "invoice");
     }
 }

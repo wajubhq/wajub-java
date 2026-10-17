@@ -8,13 +8,16 @@ import com.wajub.exception.NotFoundException;
 import com.wajub.exception.PermissionException;
 import com.wajub.exception.RateLimitException;
 import com.wajub.exception.WajubException;
+import okhttp3.HttpUrl;
 
 import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 final class HttpUtils {
@@ -24,6 +27,7 @@ final class HttpUtils {
     private static final Pattern BEARER_PREFIX = Pattern.compile("(?i)^Bearer\\s+");
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final HttpUrl SEGMENT_BASE = HttpUrl.get(API_URL);
 
     private HttpUtils() {}
 
@@ -36,6 +40,21 @@ final class HttpUtils {
             key = BEARER_PREFIX.matcher(key).replaceFirst("").trim();
         }
         return key;
+    }
+
+    /**
+     * The id as one segment of a request path, without the spaces around it, percent-encoded.
+     * Wajub ids are never empty, "." or "..", and never contain "/": such an id would reach
+     * another path, so it is refused before anything is sent.
+     */
+    static String pathSegment(String id) {
+        String segment = id == null ? null : id.trim();
+        if (segment == null || segment.isEmpty() || segment.equals(".") || segment.equals("..")
+                || segment.indexOf('/') >= 0) {
+            throw new IllegalArgumentException("wajub: invalid id " + (id == null ? "null" : "\"" + id + "\"")
+                    + ": a Wajub id is never empty, \".\" or \"..\", and never contains \"/\"");
+        }
+        return SEGMENT_BASE.newBuilder().addPathSegment(segment).build().encodedPath().substring(1);
     }
 
     static String defaultApiUrl() {
@@ -146,16 +165,37 @@ final class HttpUtils {
             }
         }
 
-        Map<String, String> fieldErrors = extractFieldErrors(body);
+        Map<String, String> firstErrors = extractFieldErrors(body);
+        Map<String, List<String>> fieldErrors = extractAllFieldErrors(body);
 
         return switch (status) {
-            case 401 -> new AuthenticationException(message, code, status, fieldErrors, body);
-            case 403 -> new PermissionException(message, code, status, fieldErrors, body);
-            case 404 -> new NotFoundException(message, code, status, fieldErrors, body);
-            case 429 -> new RateLimitException(message, code, status, fieldErrors, body, retryAfter);
-            case 400, 422 -> new InvalidRequestException(message, code, status, fieldErrors, body);
-            default -> new WajubException(message, code, status, fieldErrors, body);
+            case 401 -> new AuthenticationException(message, code, status, firstErrors, fieldErrors, body);
+            case 403 -> new PermissionException(message, code, status, firstErrors, fieldErrors, body);
+            case 404 -> new NotFoundException(message, code, status, firstErrors, fieldErrors, body);
+            case 429 -> new RateLimitException(message, code, status, firstErrors, fieldErrors, body, retryAfter);
+            case 400, 422 -> new InvalidRequestException(message, code, status, firstErrors, fieldErrors, body);
+            default -> new WajubException(message, code, status, firstErrors, fieldErrors, body);
         };
+    }
+
+    /** Every message of each field, in the API's order; a field given as one string is a one-item list. */
+    private static Map<String, List<String>> extractAllFieldErrors(Map<String, Object> body) {
+        if (body == null || !(body.get("errors") instanceof Map<?, ?> errorMap)) {
+            return Map.of();
+        }
+        Map<String, List<String>> fieldErrors = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : errorMap.entrySet()) {
+            Object value = entry.getValue();
+            List<String> messages = new ArrayList<>();
+            // A field given [] or null has no message, and keeps its place as in getErrors().
+            if (value instanceof List<?> list) {
+                list.stream().filter(Objects::nonNull).forEach(message -> messages.add(String.valueOf(message)));
+            } else if (value != null) {
+                messages.add(String.valueOf(value));
+            }
+            fieldErrors.put(String.valueOf(entry.getKey()), messages);
+        }
+        return fieldErrors;
     }
 
     @SuppressWarnings("unchecked")

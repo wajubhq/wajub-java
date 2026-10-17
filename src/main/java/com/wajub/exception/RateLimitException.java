@@ -1,5 +1,6 @@
 package com.wajub.exception;
 
+import java.util.List;
 import java.util.Map;
 
 /** Returned for HTTP 429 responses. */
@@ -11,6 +12,13 @@ public class RateLimitException extends WajubException {
                               Map<String, String> errors, Map<String, Object> raw,
                               int retryAfter) {
         super(message, code, httpStatus, errors, raw);
+        this.retryAfter = retryAfter;
+    }
+
+    public RateLimitException(String message, String code, int httpStatus,
+                              Map<String, String> errors, Map<String, List<String>> fieldErrors,
+                              Map<String, Object> raw, int retryAfter) {
+        super(message, code, httpStatus, errors, fieldErrors, raw);
         this.retryAfter = retryAfter;
     }
 

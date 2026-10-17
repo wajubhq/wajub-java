@@ -11,7 +11,8 @@ public class WebhookEndpointsResource extends CrudResource {
     }
 
     public Map<String, Object> rotateSecret(String id, RequestOptions opts) throws WajubException {
-        Map<String, Object> res = base.post("/webhooks/" + id + "/rotate-secret", null, opts);
+        String path = "/webhooks/" + HttpUtils.pathSegment(id) + "/rotate-secret";
+        Map<String, Object> res = base.post(path, null, opts);
         return HttpUtils.pickResource(res, "endpoint");
     }
 }

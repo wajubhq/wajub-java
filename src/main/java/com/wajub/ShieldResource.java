@@ -40,6 +40,6 @@ public class ShieldResource {
     }
 
     public void removeFromBlocklist(String id, RequestOptions opts) throws WajubException {
-        base.delete("/shield/blocklist/" + id, opts);
+        base.delete("/shield/blocklist/" + HttpUtils.pathSegment(id), opts);
     }
 }

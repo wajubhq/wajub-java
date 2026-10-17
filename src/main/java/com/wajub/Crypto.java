@@ -11,11 +11,17 @@ final class Crypto {
     private Crypto() {}
 
     static String hmacSha256(String key, String data) {
+        return hmacSha256(key, data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String hmacSha256(String key, byte[]... parts) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
+            for (byte[] part : parts) {
+                mac.update(part);
+            }
+            return HexFormat.of().formatHex(mac.doFinal());
         } catch (Exception e) {
             throw new RuntimeException("HMAC computation failed", e);
         }
