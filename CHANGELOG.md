@@ -7,7 +7,7 @@ The library uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [1.3.0] — 2026-10-15
+## [1.3.0] — 2026-11-22
 
 1.2.0 and 1.2.1 were never released: their changes ship in this release, and
 are listed here for an upgrade from 1.1.1.
